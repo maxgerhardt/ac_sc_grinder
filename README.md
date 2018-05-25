@@ -17,9 +17,26 @@ Notes:
    firmware file.
 
 
+How to flash 
+------------
+
+The easiest way to flash the firmware is to install Atom editor (https://atom.io/)
+and PlatformIO IDE. Installation instructions you can find at 
+http://docs.platformio.org/en/latest/index.html.
+
+After that, open project from file platformio.ini. Connect device to programmer 
+such as ST-Link v2, and connect programmer to USB. Ensure that the device 
+is NOT connected to the electric power mains (220v or 100v)! 
+In PlatformIO IDE select Menu->PlatformIO->Upload. Wait until flashing is complete.
+
+Before you turn on the device, ensure that it is NOT connected to the computer!
+
 How to build
 ------------
 
+Source directory is a PlatformIO project. To build the firmware, you need 
+Atom editor with PlatformIO IDE (see "How to flash"). Open the project, 
+then select Menu->PlatformIO->Build.
 
 ### Components
 
