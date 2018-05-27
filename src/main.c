@@ -1,15 +1,15 @@
-#include "main.h"
 #include "stm32f1xx_hal.h"
 
-int main(void)
+void _Error_Handler(const char * file, int line)
 {
-  HAL_Init();
-  SystemClock_Config();
-  MX_GPIO_Init();
-
-  while (1)
+  while(1)
   {
   }
+}
+
+void SysTick_Handler(void)
+{
+  HAL_IncTick();
 }
 
 void SystemClock_Config(void)
@@ -83,14 +83,13 @@ void MX_GPIO_Init(void)
 
 }
 
-void _Error_Handler(const char * file, int line)
+int main(void)
 {
-  while(1)
+  HAL_Init();
+  SystemClock_Config();
+  MX_GPIO_Init();
+
+  while (1)
   {
   }
-}
-
-void SysTick_Handler(void)
-{
-  HAL_IncTick();
 }
