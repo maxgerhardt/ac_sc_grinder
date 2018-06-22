@@ -1,0 +1,74 @@
+schema:
+  properties:
+    1:
+      title: Shunt value (mOhms)
+      name: SHUNT_RESISTANCE
+      description: >
+        Current sensor shunt resistance (mOhm)
+      minimum: 1.0
+      maximum: 1000.0
+      
+    2:
+      title: Motor resistance (Ohms)
+      name: MOTOR_RESISTANCE
+      description: >
+        Motor armature resistance (Ohm)
+      minimum: 0.0
+      maximum: 200.0
+      
+    3: 
+      title: RPM at max voltage without load
+      name: RPM_MAX
+      description: >
+        Maximum speed (RPM)
+      minimum: 0.0
+      maximum: 40000.0
+      
+    4:
+      title: Max motor power (Watts)
+      name: P_MAX
+      description: >
+        Motor power limit threshold (% of nominal power)
+      minimum: 100.0
+      maximum: 400.0
+      
+    5:
+      title: Limit minimal possible RPM (%)
+      name: RPM_MIN_LIMIT
+      description: >
+        Minimal speed (% of RPM_MAX)
+      minimum: 0.0
+      maximum: 100.0
+      
+    6:
+      title: Limit maximal possible RPM (%)      
+      name: RPM_MAX_LIMIT
+      description: >
+        Maximal speed (% of RPM_MAX)
+      minimum: 0.0
+      maximum: 100.0
+      
+    7:
+      title: Proportional term of PID controller
+      name: PID_P
+      description: >
+        Proportional term of PID controllers (% of maximum voltage / % of maximum speed)
+      minimum: 0.0
+      maximum: 10.0
+    
+    8: 
+      title: Integral term of PID controller
+      name: PID_I
+      description: >
+        Integral term of PID controllers (% of maximum voltage / % of maximum speed /sec)
+      minimum: 0.0
+      maximum: 10.0
+    
+    9: 
+      title: Potentiometer zero zone (%)
+      name: DEAD_ZONE_WIDTH
+      description: >
+        Value below which the potentiometer position is considered zero (% of RPM_MAX)
+      minimum: 0.0
+      maximum: 100.0
+      
