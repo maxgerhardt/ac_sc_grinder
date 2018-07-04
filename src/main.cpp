@@ -4,6 +4,7 @@
 #include "stm32f1xx_hal.h"
 
 #include "config.h"
+#include "speedcontroller.h"
 
 struct AppData
 {
@@ -11,11 +12,6 @@ struct AppData
   float cfg_motor_resistance;
   float cfg_rpm_max;
   float cfg_p_max;
-  float cfg_rpm_min_limit;
-  float cfg_rpm_max_limit;
-  float cfg_pid_p;
-  float cfg_pid_i;
-  float cfg_dead_zone_width;
 
   float potentiometer;
 
@@ -39,16 +35,12 @@ struct AppData
 
   int triac_tick_counter;
 
-  bool PID_speed_lock = false;
-  float PID_speed_integral = 0.0;
-  float PID_power_integral = 0.0;
-
-  float control_speed = 0.0;
-  float control_power = 0.0;
   float control_voltage = 0.0;
 };
 
 AppData app_data;
+
+SpeedController speedController;
 
 uint16_t adc_current;
 
@@ -212,81 +204,6 @@ void triac_controller(float control_voltage, float voltage)
     app_data.triac_tick_counter = 0;
 }
 
-void PID_speed(float potentiometer, float speed, bool lock)
-{
-  if (!lock)
-  {
-    if (potentiometer < app_data.cfg_dead_zone_width)
-      potentiometer = 0.0;
-
-    float error = potentiometer - speed;
-    float proportional = app_data.cfg_pid_p*error;
-
-    app_data.PID_speed_integral += 1.0 / app_data.cfg_pid_i * error / 50.0;
-
-    if (app_data.PID_speed_integral > app_data.cfg_rpm_max_limit /
-        app_data.cfg_rpm_max * 100.0)
-      app_data.PID_speed_integral = app_data.cfg_rpm_max_limit /
-        app_data.cfg_rpm_max * 100.0;
-
-    if (app_data.PID_speed_integral < app_data.cfg_rpm_min_limit /
-        app_data.cfg_rpm_max * 100.0)
-      app_data.PID_speed_integral = app_data.cfg_rpm_min_limit /
-        app_data.cfg_rpm_max * 100.0;
-
-    float output = proportional + app_data.PID_speed_integral;
-
-    if (output > app_data.cfg_rpm_max_limit /
-        app_data.cfg_rpm_max * 100.0)
-      output = app_data.cfg_rpm_max_limit /
-        app_data.cfg_rpm_max * 100.0;
-
-    if (output < app_data.cfg_rpm_min_limit /
-        app_data.cfg_rpm_max * 100.0)
-      output = app_data.cfg_rpm_min_limit /
-        app_data.cfg_rpm_max * 100.0;
-
-    app_data.control_speed = output;
-  }
-}
-
-void PID_power(float power)
-{
-  float error = 100.0 - power;
-  float proportional = app_data.cfg_pid_p * error;
-
-  app_data.PID_power_integral += 1.0 / app_data.cfg_pid_i * error / 50.0;
-
-  if (app_data.PID_power_integral > 100.0)
-    app_data.PID_power_integral = 100.0;
-
-  if (app_data.PID_power_integral < 0.0)
-    app_data.PID_power_integral = 0.0;
-
-  float output = proportional + app_data.PID_power_integral;
-
-  if (output > 100.0)
-    output = 100.0;
-
-  if (output < 0.0)
-    output = 0.0;
-
-  app_data.control_power = output;
-}
-
-float min_PID(float control_speed, float control_power)
-{
-  if (control_speed <= control_power)
-  {
-    app_data.PID_speed_lock = false;
-    return control_speed;
-  }
-  else
-  {
-    app_data.PID_speed_lock = true;
-    return control_power;
-  }
-}
 
 void timer1_callback(void)
 {
@@ -298,9 +215,9 @@ void timer1_callback(void)
 
 void timer2_callback(void)
 {
-  PID_speed(app_data.potentiometer,app_data.speed,app_data.PID_speed_lock);
-  PID_power(app_data.power);
-  app_data.control_voltage = min_PID(app_data.control_speed, app_data.control_power);
+  app_data.control_voltage = speedController.tick(app_data.potentiometer,
+                                                  app_data.speed,
+                                                  app_data.power);
 }
 
 int main(void)
