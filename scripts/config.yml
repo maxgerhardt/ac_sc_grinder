@@ -41,24 +41,24 @@ schema:
       maximum: 400
 
     5:
-      title: Limit minimal possible RPM (%)
+      title: Limit minimal possible RPM
       name: RPM_MIN_LIMIT
       description: >
-        Minimal speed (% of RPM_MAX)
+        Minimal speed (RPM)
       required: true
-      default: 10
+      default: 3000
       minimum: 0
-      maximum: 100
+      maximum: 40000
 
     6:
-      title: Limit maximal possible RPM (%)
+      title: Limit maximal possible RPM
       name: RPM_MAX_LIMIT
       description: >
-        Maximal speed (% of RPM_MAX)
+        Maximal speed (RPM)
       required: true
-      default: 100
+      default: 30000
       minimum: 0
-      maximum: 100
+      maximum: 40000
 
     7:
       title: Proportional term of PID controller

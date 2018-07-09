@@ -9,7 +9,7 @@
 const yaml = require('js-yaml').safeLoad;
 const path = require('path');
 const read = require('fs').readFileSync;
-//const write = require('fs').writeFileSync;
+const write = require('fs').writeFileSync;
 
 const config = yaml(read(path.resolve(__dirname, './config.yml')));
 
@@ -56,5 +56,5 @@ ${entries}
 // Save result
 //
 
-//write(path.resolve(__dirname, '../src/config_map.h'), out);
-console.log(out);
+write(path.resolve(__dirname, '../src/config_map.h'), out);
+//console.log(out);

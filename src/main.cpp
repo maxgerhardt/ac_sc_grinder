@@ -41,6 +41,7 @@ void configure()
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 {
     // TODO: calibrate ADC instead of hardcoded 3.3v
+    // TODO: investigate interrupts priorities & atomic data r/w
 
     uint16_t ADCVoltage = ADCBuffer[0];
     uint16_t ADCCurrent = ADCBuffer[1];
