@@ -52,8 +52,7 @@ public:
     // app_data.cfg_shunt_resistance - in mOhm, divide by 1000
     // maximum ADC input voltage - 3.3 V
     // shunt amplifier gain - 50
-    current = adc_current / 4096.0 / cfg_shunt_resistance /
-      1000.0 / 50.0 * 3.3;
+    current = adc_current / 4096.0 / cfg_shunt_resistance / 1000.0 / 50.0 * 3.3;
 
     // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
     voltage = adc_voltage * 3.3 / 4096.0 / 1.5 * 301.5;
@@ -79,7 +78,7 @@ private:
     // TODO: should detect & use phase shift
     if ((current > 0.0) && (voltage > 0.0))
     {
-      p_sum += voltage*current;
+      p_sum += voltage * current;
       power_tick_counter++;
     }
     // voltage is negative - make the extrapolation
@@ -95,8 +94,10 @@ private:
       power = p_sum / power_tick_counter / cfg_power_max * 100.0;
     }
 
-    for (int i=0;i<1024-1;i++)
+    for (int i=0; i<1024-1; i++)
+    {
       voltage_buffer[i+1] = voltage_buffer[i];
+    }
 
     voltage_buffer[0] = voltage;
     prev_current = current;

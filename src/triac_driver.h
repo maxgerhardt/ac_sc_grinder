@@ -21,10 +21,13 @@ public:
 
     float angle = 2 * acos(setpoint / 100.0) / 3.1416 * 40000.0 / 100.0;
 
-    if (triac_tick_counter == angle)
+    if (triac_tick_counter == angle) {
       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+    }
     else if (triac_tick_counter == angle + 1)
+    {
       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+    }
 
     triac_tick_counter++;
   }
@@ -32,7 +35,8 @@ public:
   void reset()
   {
     triac_tick_counter = 0;
-    // TODO: comment why this needed
+    // Make sure to disable triac signal, if reset (zero cross) happens
+    // immediately after triac enabled
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
   }
 
