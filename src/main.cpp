@@ -1,48 +1,28 @@
 #include <math.h>
-#include <stdbool.h>
 
 #include "stm32f1xx_hal.h"
 
 #include "config.h"
-#include "speedcontroller.h"
+#include "speed_controller.h"
+#include "sensors.h"
+#include "triac.h"
 
 struct AppData
 {
   float cfg_shunt_resistance;
-  float cfg_motor_resistance;
-  float cfg_rpm_max;
-  float cfg_p_max;
-
   float potentiometer;
-
-  float current = 0.0;
-  float prev_current;
-
-  float voltage = 0.0;
-  float prev_voltage;
-
-  float power = 0.0;
-
-  float r_ekv_sum = 0.0;
-  float speed = 0.0;
-  int speed_tick_counter;
-
-  float p_sum = 0.0;
-  int power_tick_counter;
-  int power_back_tick_counter;
-
-  float voltage_buffer[1024];
-
-  int triac_tick_counter;
-
-  float control_voltage = 0.0;
 };
 
 AppData app_data;
-
 SpeedController speedController;
+Sensors sensors;
+Triac triac;
 
-uint16_t adc_current;
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+TIM_HandleTypeDef htim1;
+
+uint16_t ADCBuffer[3];
 
 void _Error_Handler(const char * file, int line)
 {
@@ -127,104 +107,129 @@ void MX_GPIO_Init(void)
 
 }
 
-float current_value_converter(uint16_t adc_current)
+static void MX_ADC1_Init(void)
 {
-  float current = adc_current / 4096 / app_data.cfg_shunt_resistance /
-    1000.0 / 10.0 * 3.3;
-  return current;
-}
-
-void speed_calculator(float current, float voltage)
-{
-  if ((current > 0.0) && (voltage > 0.0))
+  ADC_ChannelConfTypeDef sConfig;
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 2;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
-    app_data.r_ekv_sum += voltage/current - app_data.cfg_motor_resistance;
-    app_data.speed_tick_counter++;
+    _Error_Handler(__FILE__, __LINE__);
   }
-
-  if ((app_data.prev_voltage > 0.0) && (voltage == 0.0))
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_28CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
-    float r_ekv = app_data.r_ekv_sum / app_data.speed_tick_counter;
-    app_data.speed = 10.0 * r_ekv / app_data.cfg_rpm_max;
-    app_data.speed_tick_counter++;
+    _Error_Handler(__FILE__, __LINE__);
   }
-    app_data.prev_voltage = voltage;
-}
-
-void power_calculator(float current, float voltage)
-{
-  if ((current > 0.0) && (voltage > 0.0))
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
-    app_data.p_sum += voltage*current;
-    app_data.power_tick_counter++;
+    _Error_Handler(__FILE__, __LINE__);
   }
-  else if ((current > 0.0) && (voltage == 0.0))
+}
+
+static void MX_DMA_Init(void)
+{
+  __HAL_RCC_DMA1_CLK_ENABLE();
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+}
+
+static void MX_TIM1_Init(void)
+{
+
+}
+
+// 40 kHz
+void zerocross(float voltage)
+{
+  if (((sensors.prev_voltage == 0.0) && (voltage > 0.0)) ||
+        ((sensors.prev_voltage > 0.0) && (voltage == 0.0)))
   {
-    app_data.p_sum -= app_data.voltage_buffer[app_data.power_back_tick_counter] * current;
-    app_data.power_back_tick_counter++;
-    app_data.power_tick_counter++;
+    // 100 - 120 Hz
+    triac.reset();
+    speedController.tick(app_data.potentiometer, sensors.speed, sensors.power);
+    triac.setpoint = speedController.setpoint;
   }
-
-  if ((app_data.prev_current > 0.0) && (current == 0.0))
-  {
-    app_data.power = app_data.p_sum / app_data.power_tick_counter /
-      app_data.cfg_p_max * 100.0;
-  }
-
-  for (int i=0;i<1024-1;i++)
-    app_data.voltage_buffer[i+1] = app_data.voltage_buffer[i];
-
-  app_data.voltage_buffer[0] = voltage;
-  app_data.prev_current = current;
 }
 
-void triac_on(void)
+float read_cfg(float *addr, float default_value)
 {
-
+  return default_value;
 }
 
-void triac_off(void)
+void cfg_init()
 {
+  app_data.cfg_shunt_resistance = read_cfg((float*)CFG_SHUNT_RESISTANCE_ADDR,
+                                                   CFG_SHUNT_RESISTANCE_DEFAULT);
 
+  speedController.cfg_dead_zone_width = read_cfg((float*)CFG_DEAD_ZONE_WIDTH_ADDR,
+                                                     CFG_DEAD_ZONE_WIDTH_DEFAULT);
+  speedController.cfg_pid_p = read_cfg((float*)CFG_PID_P_ADDR, CFG_PID_P_DEFAULT);
+  speedController.cfg_pid_i = read_cfg((float*)CFG_PID_I_ADDR, CFG_PID_P_DEFAULT);
+  speedController.cfg_rpm_max_limit = read_cfg((float*)CFG_RPM_MAX_LIMIT_ADDR,
+                                                       CFG_RPM_MAX_LIMIT_DEFAULT);
+  speedController.cfg_rpm_min_limit = read_cfg((float*)CFG_RPM_MIN_LIMIT_ADDR,
+                                                       CFG_RPM_MIN_LIMIT_DEFAULT);
+  speedController.cfg_rpm_max = read_cfg((float*)CFG_RPM_MAX_ADDR,
+                                                 CFG_RPM_MAX_DEFAULT);
+
+  sensors.cfg_p_max = read_cfg((float*)CFG_P_MAX_ADDR, CFG_P_MAX_DEFAULT);
+  sensors.cfg_motor_resistance = read_cfg((float*)CFG_MOTOR_RESISTANCE_ADDR,
+                                                  CFG_MOTOR_RESISTANCE_DEFAULT);
+  sensors.cfg_rpm_max = read_cfg((float*)CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
 }
 
-void triac_controller(float control_voltage, float voltage)
+// 40 kHz
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 {
-  float angle = 2 * acos(control_voltage / 100.0) / 3.1416 * 40000.0 / 50.0 / 2;
+    uint16_t ADCVoltage = ADCBuffer[0];
+    uint16_t ADCCurrent = ADCBuffer[1];
+    uint16_t ADCPotentiometer = ADCBuffer[2];
 
-  if (app_data.triac_tick_counter<angle)
-    triac_off();
-  else
-    triac_on();
+    // 4096 - maximum value of 12-bit integer
+    app_data.potentiometer = ADCPotentiometer * 100.0 / 4096.0;
 
-  app_data.triac_tick_counter++;
+    // app_data.cfg_shunt_resistance - in mOhm, divide by 1000
+    // maximum ADC input voltage - 3.3 V
+    // shunt amplifier gain - 50
+    sensors.current = ADCCurrent / 4096.0 / app_data.cfg_shunt_resistance /
+      1000.0 / 50.0 * 3.3;
 
-  if (((app_data.prev_voltage == 0.0) && (voltage > 0.0)) ||
-      ((app_data.prev_voltage > 0.0) && (voltage == 0.0)))
-    app_data.triac_tick_counter = 0;
+    // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
+    sensors.voltage = ADCVoltage * 3.3 / 4096.0 / 1.5 * 301.5;
 }
 
-
-void timer1_callback(void)
+// 40 kHz
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  app_data.current = current_value_converter(adc_current);
-  speed_calculator(app_data.current, app_data.voltage);
-  power_calculator(app_data.current, app_data.voltage);
-  triac_controller(app_data.control_voltage, app_data.voltage);
-}
-
-void timer2_callback(void)
-{
-  app_data.control_voltage = speedController.tick(app_data.potentiometer,
-                                                  app_data.speed,
-                                                  app_data.power);
+  sensors.tick();
+  triac.tick();
+  zerocross(sensors.voltage);
 }
 
 int main(void)
 {
   HAL_Init();
   SystemClock_Config();
+
+  cfg_init();
+
   MX_GPIO_Init();
+  MX_ADC1_Init();
+  MX_DMA_Init();
+  MX_TIM1_Init();
+
+  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADCBuffer,3);
+  HAL_TIM_Base_Start_IT(&htim1);
 
   while (1)
   {

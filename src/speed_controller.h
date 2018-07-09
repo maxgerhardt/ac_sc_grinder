@@ -9,11 +9,13 @@ public:
   float cfg_rpm_min_limit;
   float cfg_rpm_max;
 
-  float tick(float potentiometer, float speed, float power)
+  float setpoint = 0.0;
+
+  void tick(float potentiometer, float speed, float power)
   {
     float control_speed = calculateControlSpeed(potentiometer,speed,lock);
     float control_power = calculateControlPower(power);
-    return minControl(control_speed,control_power);
+    setpoint = minControl(control_speed,control_power);
   }
 
 private:
@@ -32,7 +34,7 @@ private:
       float error = potentiometer - speed;
       float proportional = cfg_pid_p*error;
 
-      PID_speed_integral += 1.0 / cfg_pid_i * error / 50.0;
+      PID_speed_integral += 1.0 / cfg_pid_i * error;
 
       if (PID_speed_integral > cfg_rpm_max_limit / cfg_rpm_max * 100.0)
       PID_speed_integral = cfg_rpm_max_limit / cfg_rpm_max * 100.0;
@@ -58,7 +60,7 @@ private:
     float error = 100.0 - power;
     float proportional = cfg_pid_p * error;
 
-    PID_power_integral += 1.0 / cfg_pid_i * error / 50.0;
+    PID_power_integral += 1.0 / cfg_pid_i * error;
 
     if (PID_power_integral > 100.0)
       PID_power_integral = 100.0;
