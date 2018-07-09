@@ -67,6 +67,7 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBuffer, 3);
   HAL_TIM_Base_Start_IT(&htim1);
 
-  // TODO: wait for interrupt
-  while (1) {}
+  while (1) {
+    __WFI();
+  }
 }
