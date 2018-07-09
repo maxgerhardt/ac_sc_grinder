@@ -8,21 +8,17 @@
 class TriacDriver
 {
 public:
-
+  // 0..100% of desired triac "power".
   float setpoint = 0.0;
 
+  // 40 kHz
   void tick()
   {
-    /* angle - control angle in ticks
+    // angle - control angle in ticks
+    // output voltage is proportional to 2 * arccosinus of control angle
+    // voltage_half_period => 1/100 sec, or 1/120 sec
+    // angle = 2 * arccosinus(setpoint / 100%) / pi * tick_frequency * voltage_half_period
 
-       output voltage is proportional to 2 * arccosinus of control angle
-
-       setpoint - 0-100%
-       tick_frequency - 40 kHz
-       voltage_half_period - 1/100 sec, or 1/120 sec
-
-       angle = 2 * arccosinus(setpoint / 100%) / pi * tick_frequency * voltage_half_period
-    */
     float angle = 2 * acos(setpoint / 100.0) / 3.1416 * 40000.0 / 100.0;
 
     if (triac_tick_counter == angle)

@@ -25,12 +25,6 @@ public:
 
   float prev_voltage = 0.0;
 
-  // Conig info
-  float cfg_shunt_resistance;
-  float cfg_power_max;
-  float cfg_motor_resistance;
-  float cfg_rpm_max;
-
   // Should be called with 40kHz frequency
   void tick()
   {
@@ -66,6 +60,11 @@ public:
   }
 
 private:
+  // Conig info
+  float cfg_shunt_resistance;
+  float cfg_power_max;
+  float cfg_motor_resistance;
+  float cfg_rpm_max;
 
   float p_sum = 0.0;
   int power_tick_counter = 0;

@@ -9,18 +9,6 @@
 class SpeedController
 {
 public:
-
-  // Control dead zone width near 0, when motor should not run.
-  float cfg_dead_zone_width;
-  // PID coefficients
-  float cfg_pid_p;
-  float cfg_pid_i;
-  // In theory limits should be in % if max, but it's more convenient
-  // for users to work with direct RPM values.
-  float cfg_rpm_max_limit;
-  float cfg_rpm_min_limit;
-  float cfg_rpm_max;
-
   float setpoint = 0.0;
 
   // Expected be called with 100/120Hz frequency
@@ -44,6 +32,17 @@ public:
   }
 
 private:
+  // Control dead zone width near 0, when motor should not run.
+  float cfg_dead_zone_width;
+  // PID coefficients
+  float cfg_pid_p;
+  float cfg_pid_i;
+  // In theory limits should be in % if max, but it's more convenient
+  // for users to work with direct RPM values.
+  float cfg_rpm_max_limit;
+  float cfg_rpm_min_limit;
+  float cfg_rpm_max;
+
 
   float PID_speed_integral = 0;
   float PID_power_integral = 0;
