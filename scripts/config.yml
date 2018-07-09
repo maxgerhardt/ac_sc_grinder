@@ -81,10 +81,10 @@ schema:
       maximum: 10
 
     9:
-      title: Potentiometer zero zone (%)
+      title: Speed knob zero zone (%)
       name: DEAD_ZONE_WIDTH
       description: >
-        Value below which the potentiometer position is considered zero (% of RPM_MAX)
+        Define initial zone where output should be zero (% of max range)
       required: true
       default: 5
       minimum: 0

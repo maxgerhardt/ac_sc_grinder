@@ -8,6 +8,11 @@
 #include "stm32f1xx_hal.h"
 
 
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+TIM_HandleTypeDef htim1;
+
+
 void _Error_Handler(const char * file, int line)
 {
   while(1) {}
@@ -85,11 +90,6 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 }
-
-
-ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
-TIM_HandleTypeDef htim1;
 
 
 static void MX_ADC1_Init(void)

@@ -21,10 +21,12 @@ public:
   float speed = 0.0;
   float voltage = 0.0;
   float current = 0.0;
+  float knob = 0.0; // Speed knob physical value, 0..100%
 
   float prev_voltage = 0.0;
 
   // Conig info
+  float cfg_shunt_resistance;
   float cfg_power_max;
   float cfg_motor_resistance;
   float cfg_rpm_max;
@@ -39,9 +41,28 @@ public:
   // Load config from emulated EEPROM
   void configure()
   {
+    cfg_shunt_resistance = eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT);
     cfg_power_max = eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT);
     cfg_motor_resistance = eeprom_float_read(CFG_MOTOR_RESISTANCE_ADDR, CFG_MOTOR_RESISTANCE_DEFAULT);
     cfg_rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
+  }
+
+  // Store raw ADC data to normalized values
+  void adc_raw_data_load(int adc_voltage, int adc_current, int adc_knob)
+  {
+    // TODO: calibrate ADC instead of hardcoded 3.3v
+
+    // 4096 - maximum value of 12-bit integer
+    knob = adc_knob * 100.0 / 4096.0;
+
+    // app_data.cfg_shunt_resistance - in mOhm, divide by 1000
+    // maximum ADC input voltage - 3.3 V
+    // shunt amplifier gain - 50
+    current = adc_current / 4096.0 / cfg_shunt_resistance /
+      1000.0 / 50.0 * 3.3;
+
+    // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
+    voltage = adc_voltage * 3.3 / 4096.0 / 1.5 * 301.5;
   }
 
 private:
