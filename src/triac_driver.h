@@ -1,7 +1,11 @@
+#ifndef __TRIAC_DRIVER__
+#define __TRIAC_DRIVER__
+
+
 #include <math.h>
 #include "stm32f1xx_hal.h"
 
-class Triac
+class TriacDriver
 {
 public:
 
@@ -38,3 +42,6 @@ public:
 private:
   int triac_tick_counter = 0;
 };
+
+
+#endif

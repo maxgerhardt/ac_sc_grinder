@@ -1,21 +1,46 @@
+#ifndef __SPEED_CONTROLLER__
+#define __SPEED_CONTROLLER__
+
+
+#include "eeprom_float.h"
+#include "config_map.h"
+
+
 class SpeedController
 {
 public:
 
+  // Control dead zone width near 0, when motor should not run.
   float cfg_dead_zone_width;
+  // PID coefficients
   float cfg_pid_p;
   float cfg_pid_i;
+  // In theory limits should be in % if max, but it's more convenient
+  // for users to work with direct RPM values.
   float cfg_rpm_max_limit;
   float cfg_rpm_min_limit;
   float cfg_rpm_max;
 
   float setpoint = 0.0;
 
+  // Expected be called with 100/120Hz frequency
+  // More frequent calls are useless, because we can not control triac faster
   void tick(float potentiometer, float speed, float power)
   {
-    float control_speed = calculateControlSpeed(potentiometer,speed,lock);
+    float control_speed = calculateControlSpeed(potentiometer, speed, lock);
     float control_power = calculateControlPower(power);
-    setpoint = minControl(control_speed,control_power);
+    setpoint = minControl(control_speed, control_power);
+  }
+
+  // Load config from emulated EEPROM
+  void configure()
+  {
+    cfg_dead_zone_width = eeprom_float_read(CFG_DEAD_ZONE_WIDTH_ADDR, CFG_DEAD_ZONE_WIDTH_DEFAULT);
+    cfg_pid_p = eeprom_float_read(CFG_PID_P_ADDR, CFG_PID_P_DEFAULT);
+    cfg_pid_i = eeprom_float_read(CFG_PID_I_ADDR, CFG_PID_P_DEFAULT);
+    cfg_rpm_max_limit = eeprom_float_read(CFG_RPM_MAX_LIMIT_ADDR, CFG_RPM_MAX_LIMIT_DEFAULT);
+    cfg_rpm_min_limit = eeprom_float_read(CFG_RPM_MIN_LIMIT_ADDR, CFG_RPM_MIN_LIMIT_DEFAULT);
+    cfg_rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
   }
 
 private:
@@ -93,3 +118,6 @@ private:
     }
   }
 };
+
+
+#endif
