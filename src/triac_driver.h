@@ -3,6 +3,7 @@
 
 
 #include <math.h>
+#include "utils.h"
 #include "stm32f1xx_hal.h"
 
 class TriacDriver
@@ -15,34 +16,45 @@ public:
   // 40 kHz
   void tick()
   {
-    // angle - control angle in ticks
-    // output voltage is proportional to 2 * arccosinus of control angle
-    // voltage_half_period => 1/100 sec, or 1/120 sec
-    // angle = 2 * arccosinus(setpoint / 100%) / pi * tick_frequency * voltage_half_period
-
-    float angle = 2 * acos(setpoint / 100.0) / 3.1416 * 40000.0 / 100.0;
-
-    if (triac_tick_counter == angle) {
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-    }
-    else if (triac_tick_counter == angle + 1)
-    {
+    // If triac was activated (in prev tick) and still active - deactivate it.
+    if (triac_open_done && !triac_close_done) {
+      triac_close_done = true;
       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
     }
 
-    triac_tick_counter++;
+    // If triac was not yet activated - check if we can to this
+    if (!triac_open_done) {
+      // "Linearize" setpoint to phase shift & scale to 0..1
+      float normalized_setpoint = clamp(acos(setpoint / 100.0) * 2 / 3.1416, 0.0, 1.0);
+
+      // TODO: measure period in ticks instead of hardcoding
+      // Calculate ticks treshold when triac should be enabled
+      int ticks_treshold = normalized_setpoint * 40000.0 / 100.0;
+
+      if (phase_counter >= ticks_treshold) {
+        triac_open_done = true;
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+      }
+    }
+
+    phase_counter++;
   }
 
-  void reset()
+  void rearm()
   {
-    triac_tick_counter = 0;
+    phase_counter = 0;
+    triac_open_done = false;
+    triac_close_done = false;
+
     // Make sure to disable triac signal, if reset (zero cross) happens
     // immediately after triac enabled
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
   }
 
 private:
-  int triac_tick_counter = 0;
+  int phase_counter = 0; // increment every tick
+  bool triac_open_done = false;
+  bool triac_close_done = false;
 };
 
 

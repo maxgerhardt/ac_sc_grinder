@@ -51,8 +51,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     speedController.in_power = sensors.power;
     speedController.tick();
 
-    triacDriver.reset();
     triacDriver.setpoint = speedController.out_power;
+    triacDriver.rearm();
   }
 
   prev_voltage = voltage;
