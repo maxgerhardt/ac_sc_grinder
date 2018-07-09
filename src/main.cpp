@@ -34,12 +34,16 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 // 40 kHz ticker for all logic
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
+  static float prev_voltage = 0.0;
+
   sensors.tick();
   triacDriver.tick();
 
+  float voltage = sensors.voltage;
+
   // Poor man zero cross check
-  if (((sensors.prev_voltage == 0.0) && (sensors.voltage > 0.0)) ||
-        ((sensors.prev_voltage > 0.0) && (sensors.voltage == 0.0)))
+  if (((prev_voltage == 0.0) && (voltage > 0.0)) ||
+      ((prev_voltage > 0.0) && (voltage == 0.0)))
   {
     // 100/120 Hz, tick speed controller PIDs & rearm triac driver
     speedController.tick(sensors.knob, sensors.speed, sensors.power);
@@ -47,6 +51,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     triacDriver.reset();
     triacDriver.setpoint = speedController.setpoint;
   }
+
+  prev_voltage = voltage;
 }
 
 

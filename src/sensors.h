@@ -23,8 +23,6 @@ public:
   float current = 0.0;
   float knob = 0.0; // Speed knob physical value, 0..100%
 
-  float prev_voltage = 0.0;
-
   // Should be called with 40kHz frequency
   void tick()
   {
@@ -71,6 +69,7 @@ private:
   float voltage_buffer[1024];
   int power_back_tick_counter = 0;
 
+  float prev_voltage = 0.0;
   float prev_current = 0.0;
 
   void power_tick()
