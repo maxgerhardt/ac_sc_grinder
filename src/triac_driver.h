@@ -25,11 +25,11 @@ public:
     // If triac was not yet activated - check if we can to this
     if (!triac_open_done) {
       // "Linearize" setpoint to phase shift & scale to 0..1
-      float normalized_setpoint = clamp(acos(setpoint / 100.0) * 2 / 3.1416, 0.0, 1.0);
+      float normalized_setpoint = clamp(acos(setpoint / 100.0) * (2.0 / 3.1416), 0.0, 1.0);
 
       // TODO: measure period in ticks instead of hardcoding
       // Calculate ticks treshold when triac should be enabled
-      int ticks_treshold = normalized_setpoint * 40000.0 / 100.0;
+      int ticks_treshold = normalized_setpoint * (40000.0 / 100.0);
 
       if (phase_counter >= ticks_treshold) {
         triac_open_done = true;

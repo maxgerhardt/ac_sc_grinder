@@ -45,15 +45,16 @@ public:
     // TODO: calibrate ADC instead of hardcoded 3.3v
 
     // 4096 - maximum value of 12-bit integer
-    knob = adc_knob * 100.0 / 4096.0;
+    knob = adc_knob * (100.0 / 4096.0);
 
-    // app_data.cfg_shunt_resistance - in mOhm, divide by 1000
+    // cfg_shunt_resistance - in mOhm, divide by 1000
     // maximum ADC input voltage - 3.3 V
     // shunt amplifier gain - 50
-    current = adc_current / 4096.0 / cfg_shunt_resistance / 1000.0 / 50.0 * 3.3;
+    // => current = adc_current / 4096.0 / cfg_shunt_resistance / 1000.0 / 50.0 * 3.3;
+    current = adc_current / cfg_shunt_resistance / (4096.0 * 1000.0 * 50.0 / 3.3);
 
     // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
-    voltage = adc_voltage * 3.3 / 4096.0 / 1.5 * 301.5;
+    voltage = adc_voltage * (3.3 / 4096.0 / 1.5 * 301.5);
   }
 
 private:
@@ -93,7 +94,8 @@ private:
       power = p_sum / power_tick_counter / cfg_power_max * 100.0;
     }
 
-    for (int i=0; i<1024-1; i++)
+    // TODO: what's that?
+    for (int i=0; i < (1024 - 1); i++)
     {
       voltage_buffer[i+1] = voltage_buffer[i];
     }

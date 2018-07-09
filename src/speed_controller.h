@@ -36,6 +36,9 @@ public:
     cfg_rpm_max_limit = eeprom_float_read(CFG_RPM_MAX_LIMIT_ADDR, CFG_RPM_MAX_LIMIT_DEFAULT);
     cfg_rpm_min_limit = eeprom_float_read(CFG_RPM_MIN_LIMIT_ADDR, CFG_RPM_MIN_LIMIT_DEFAULT);
     cfg_rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
+
+    out_min_clamp = cfg_rpm_min_limit / cfg_rpm_max * 100.0;
+    out_max_clamp = cfg_rpm_max_limit / cfg_rpm_max * 100.0;
   }
 
 private:
@@ -50,6 +53,10 @@ private:
   float cfg_rpm_min_limit;
   float cfg_rpm_max;
 
+  // Cache for clamping limits, calculated on config load
+  float out_min_clamp = 0.0;
+  float out_max_clamp = 100.0;
+
 
   float PID_speed_integral = 0;
   float PID_power_integral = 0;
@@ -59,43 +66,32 @@ private:
   {
     if (!lock)
     {
+      // TODO: seems missed range normalization (rpm_min..rpm_max)
       if (potentiometer < cfg_dead_zone_width)
       {
         potentiometer = 0.0;
       }
 
-      float error = potentiometer - speed;
-      float proportional = cfg_pid_p*error;
+      float divergence = potentiometer - speed;
 
-      PID_speed_integral += 1.0 / cfg_pid_i * error;
+      PID_speed_integral += 1.0 / cfg_pid_i * divergence;
+      PID_speed_integral = clamp(PID_speed_integral, out_min_clamp, out_max_clamp);
 
-      PID_speed_integral = clamp(
-        PID_speed_integral,
-        cfg_rpm_min_limit / cfg_rpm_max * 100.0,
-        cfg_rpm_max_limit / cfg_rpm_max * 100.0
-      );
+      float proportional = cfg_pid_p * divergence;
 
-      float output = proportional + PID_speed_integral;
-
-      output = clamp(
-        output,
-        cfg_rpm_min_limit / cfg_rpm_max * 100.0,
-        cfg_rpm_max_limit / cfg_rpm_max * 100.0
-      );
-
-      return output;
+      return clamp(proportional + PID_speed_integral, out_min_clamp, out_max_clamp);
     }
     return 0.0;
   }
 
   float calculateControlPower(float power)
   {
-    float error = 100.0 - power;
-    float proportional = cfg_pid_p * error;
+    float divergence = 100.0 - power;
 
-    PID_power_integral += 1.0 / cfg_pid_i * error;
-
+    PID_power_integral += 1.0 / cfg_pid_i * divergence;
     PID_power_integral = clamp(PID_power_integral, 0.0, 100.0);
+
+    float proportional = cfg_pid_p * divergence;
 
     return clamp(proportional + PID_power_integral, 0.0, 100.0);
   }
