@@ -9,6 +9,7 @@ class TriacDriver
 {
 public:
   // 0..100% of desired triac "power".
+  // Will be used to calculate opening phase for each half sine wave
   float setpoint = 0.0;
 
   // 40 kHz

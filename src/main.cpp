@@ -46,10 +46,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       ((prev_voltage > 0.0) && (voltage == 0.0)))
   {
     // 100/120 Hz, tick speed controller PIDs & rearm triac driver
-    speedController.tick(sensors.knob, sensors.speed, sensors.power);
+    speedController.in_knob = sensors.knob;
+    speedController.in_speed = sensors.speed;
+    speedController.in_power = sensors.power;
+    speedController.tick();
 
     triacDriver.reset();
-    triacDriver.setpoint = speedController.setpoint;
+    triacDriver.setpoint = speedController.out_power;
   }
 
   prev_voltage = voltage;

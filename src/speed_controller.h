@@ -10,15 +10,21 @@
 class SpeedController
 {
 public:
-  float setpoint = 0.0;
+  // Inputs
+  float in_knob = 0.0;  // Knob position
+  float in_speed = 0.0; // Measured speed
+  float in_power = 0.0; // Measured power
+
+  // Output power 0..100% for triac control
+  float out_power = 0.0;
 
   // Expected be called with 100/120Hz frequency
   // More frequent calls are useless, because we can not control triac faster
-  void tick(float potentiometer, float speed, float power)
+  void tick()
   {
-    float control_speed = calculateControlSpeed(potentiometer, speed, lock);
-    float control_power = calculateControlPower(power);
-    setpoint = minControl(control_speed, control_power);
+    float control_speed = calculateControlSpeed(in_knob, in_speed, lock);
+    float control_power = calculateControlPower(in_power);
+    out_power = minControl(control_speed, control_power);
   }
 
   // Load config from emulated EEPROM
