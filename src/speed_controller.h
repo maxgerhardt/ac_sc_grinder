@@ -22,9 +22,23 @@ public:
   // More frequent calls are useless, because we can not control triac faster
   void tick()
   {
-    float control_speed = calculateControlSpeed(in_knob, in_speed, lock);
-    float control_power = calculateControlPower(in_power);
-    out_power = minControl(control_speed, control_power);
+    if (!lock)
+    {
+      pid_speed_out = speed_pid_tick();
+    }
+
+    float pid_power_out = power_pid_tick();
+
+    if (pid_speed_out <= pid_power_out)
+    {
+      lock = false;
+      out_power = pid_speed_out;
+    }
+    else
+    {
+      lock = true;
+      out_power = pid_power_out;
+    }
   }
 
   // Load config from emulated EEPROM
@@ -60,33 +74,35 @@ private:
 
   float PID_speed_integral = 0;
   float PID_power_integral = 0;
+  float pid_speed_out = 0;
   bool lock = false;
 
-  float calculateControlSpeed(float potentiometer, float speed, bool lock)
+  float speed_pid_tick()
   {
-    if (!lock)
+    // TODO: seems missed range normalization (rpm_min..rpm_max)
+    float knob;
+    if (in_knob < cfg_dead_zone_width)
     {
-      // TODO: seems missed range normalization (rpm_min..rpm_max)
-      if (potentiometer < cfg_dead_zone_width)
-      {
-        potentiometer = 0.0;
-      }
-
-      float divergence = potentiometer - speed;
-
-      PID_speed_integral += 1.0 / cfg_pid_i * divergence;
-      PID_speed_integral = clamp(PID_speed_integral, out_min_clamp, out_max_clamp);
-
-      float proportional = cfg_pid_p * divergence;
-
-      return clamp(proportional + PID_speed_integral, out_min_clamp, out_max_clamp);
+      knob = 0.0;
     }
-    return 0.0;
+    else
+    {
+      knob = clamp(in_knob, out_min_clamp, out_max_clamp);
+    }
+
+    float divergence = knob - in_speed;
+
+    PID_speed_integral += 1.0 / cfg_pid_i * divergence;
+    PID_speed_integral = clamp(PID_speed_integral, out_min_clamp, out_max_clamp);
+
+    float proportional = cfg_pid_p * divergence;
+
+    return clamp(proportional + PID_speed_integral, out_min_clamp, out_max_clamp);
   }
 
-  float calculateControlPower(float power)
+  float power_pid_tick()
   {
-    float divergence = 100.0 - power;
+    float divergence = 100.0 - in_power;
 
     PID_power_integral += 1.0 / cfg_pid_i * divergence;
     PID_power_integral = clamp(PID_power_integral, 0.0, 100.0);
@@ -94,20 +110,6 @@ private:
     float proportional = cfg_pid_p * divergence;
 
     return clamp(proportional + PID_power_integral, 0.0, 100.0);
-  }
-
-  float minControl(float control_speed, float control_power)
-  {
-    if (control_speed <= control_power)
-    {
-      lock = false;
-      return control_speed;
-    }
-    else
-    {
-      lock = true;
-      return control_power;
-    }
   }
 };
 
