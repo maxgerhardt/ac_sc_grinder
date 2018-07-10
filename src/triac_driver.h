@@ -6,6 +6,12 @@
 #include "utils.h"
 #include "stm32f1xx_hal.h"
 
+
+// TODO: check polarity
+#define TRIAC_OFF() HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET)
+#define TRIAC_ON()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET)
+
+
 class TriacDriver
 {
 public:
@@ -16,10 +22,13 @@ public:
   // 40 kHz
   void tick()
   {
+    // TODO: at 100% power (start of sine wave) - wait for safe ignition voltage
+    // (should be > 25v, measure at positive wave) before triac control signal remove.
+
     // If triac was activated (in prev tick) and still active - deactivate it.
     if (triac_open_done && !triac_close_done) {
       triac_close_done = true;
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+      TRIAC_OFF();
     }
 
     // If triac was not yet activated - check if we can to this
@@ -33,7 +42,7 @@ public:
 
       if (phase_counter >= ticks_treshold) {
         triac_open_done = true;
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+        TRIAC_ON();
       }
     }
 
@@ -48,7 +57,7 @@ public:
 
     // Make sure to disable triac signal, if reset (zero cross) happens
     // immediately after triac enabled
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+    TRIAC_OFF();
   }
 
 private:
