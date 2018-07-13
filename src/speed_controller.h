@@ -20,9 +20,13 @@ public:
 
   // Expected be called with 100/120Hz frequency
   // More frequent calls are useless, because we can not control triac faster
+
+  // Contains two PIDs. pid_speed used in normal mode, pid_power - in power limit mode.
+  // When motor power exceeds the limit, the pid_power output
+  // drops below the pid_speed output.
   void tick()
   {
-    if (!lock)
+    if (!power_limit)
     {
       pid_speed_out = speed_pid_tick();
     }
@@ -31,12 +35,18 @@ public:
 
     if (pid_speed_out <= pid_power_out)
     {
-      lock = false;
+      if (power_limit)
+      {
+      // Recalculate PID_speed_integral to ensure smooth switch to normal mode
+        float knob = normalize(in_knob, cfg_dead_zone_width, out_min_clamp, out_max_clamp);
+        PID_speed_integral = pid_speed_out - (knob - in_speed) * cfg_pid_p;
+        power_limit = false;
+      }
       out_power = pid_speed_out;
     }
     else
     {
-      lock = true;
+      power_limit = true;
       out_power = pid_power_out;
     }
   }
@@ -75,20 +85,11 @@ private:
   float PID_speed_integral = 0;
   float PID_power_integral = 0;
   float pid_speed_out = 0;
-  bool lock = false;
+  bool power_limit = false;
 
   float speed_pid_tick()
   {
-    // TODO: seems missed range normalization (rpm_min..rpm_max)
-    float knob;
-    if (in_knob < cfg_dead_zone_width)
-    {
-      knob = 0.0;
-    }
-    else
-    {
-      knob = clamp(in_knob, out_min_clamp, out_max_clamp);
-    }
+    float knob = normalize(in_knob, cfg_dead_zone_width, out_min_clamp, out_max_clamp);
 
     float divergence = knob - in_speed;
 
