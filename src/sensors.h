@@ -92,6 +92,8 @@ private:
     if ((prev_current > 0.0) && (current == 0.0))
     {
       power = p_sum / power_tick_counter / cfg_power_max * 100.0;
+      power_tick_counter = 0;
+      power_back_tick_counter = 0;
     }
 
     voltage_buffer[power_tick_counter] = voltage;
