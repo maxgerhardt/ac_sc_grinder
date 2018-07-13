@@ -94,13 +94,7 @@ private:
       power = p_sum / power_tick_counter / cfg_power_max * 100.0;
     }
 
-    // TODO: what's that?
-    for (int i=0; i < (1024 - 1); i++)
-    {
-      voltage_buffer[i+1] = voltage_buffer[i];
-    }
-
-    voltage_buffer[0] = voltage;
+    voltage_buffer[power_tick_counter] = voltage;
     prev_current = current;
   }
 
