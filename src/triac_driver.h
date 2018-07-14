@@ -33,8 +33,9 @@ public:
       return;
     }
 
-    // If triac was activated (in prev tick) and still active - deactivate it.
-    if (triac_open_done && !triac_close_done) {
+    // If triac was activated (in prev tick) and still active
+    // and voltage > 25v - deactivate it.
+    if (triac_open_done && !triac_close_done && (phase_counter > safe_ignition_threshold)) {
       triac_close_done = true;
       TRIAC_OFF();
     }
@@ -70,6 +71,12 @@ public:
     TRIAC_OFF();
   }
 
+  // Set current number of ticks as safe ignition threshold
+  void set_safe_ignition_threshold()
+  {
+    safe_ignition_threshold = phase_counter;
+  }
+
 private:
   int phase_counter = 0; // increment every tick
   bool triac_open_done = false;
@@ -79,6 +86,12 @@ private:
   // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
   // Initial value -1 prevents triac from turning on during first period
   int period_in_ticks = -1;
+
+  // Holds ticks threshold when triac control signal is safe to turn off, vlotage > 25v
+  // Initial value set to 0 because during the first period triac
+  // won't turn on anyway
+  int safe_ignition_threshold = 0;
+
 };
 
 

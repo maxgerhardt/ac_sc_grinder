@@ -42,6 +42,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   float voltage = sensors.voltage;
 
+  // If voltage crosses 25v, tell the triac driver
+  // that triac control voltage can be safely turned off
+  // from this moment
+  if ((voltage >= 25.0) && (prev_voltage < 25.0))
+    triacDriver.set_safe_ignition_threshold();
+
   // Poor man zero cross check
   if (((prev_voltage == 0.0) && (voltage > 0.0)) ||
       ((prev_voltage > 0.0) && (voltage == 0.0)))
