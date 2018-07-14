@@ -1,10 +1,10 @@
 Config for STM32CubeMX
 ======================
 
-This file is not needed if you use our hardware design. It can be used to adjust 
-the project to different hardware layout. To do this, follow next steps.
+You probably never need files from this folder.
 
-### How to use
+If you wish to adjust MCU pinouts and update `/src/hw_init.h`, follow
+instructions below:
 
 1. Install and run STM32CubeMX
    (https://www.st.com/en/development-tools/stm32cubemx.html#getsoftware-scroll)

@@ -27,8 +27,13 @@ public:
   void tick()
   {
     if (in_knob < cfg_dead_zone_width) knob_normalized = 0.0;
-    else knob_normalized = (in_knob - cfg_dead_zone_width) /
-     (100.0 - cfg_dead_zone_width) * (out_max_clamp - out_min_clamp) + out_min_clamp;
+    else
+    {
+      knob_normalized = (in_knob - cfg_dead_zone_width)
+        / (100.0 - cfg_dead_zone_width)
+        * (out_max_clamp - out_min_clamp)
+        + out_min_clamp;
+    }
 
     if (!power_limit)
     {
