@@ -36,9 +36,8 @@ public:
       // "Linearize" setpoint to phase shift & scale to 0..1
       float normalized_setpoint = clamp(acos(setpoint / 100.0) * (2.0 / 3.1416), 0.0, 1.0);
 
-      // TODO: measure period in ticks instead of hardcoding
       // Calculate ticks treshold when triac should be enabled
-      int ticks_treshold = normalized_setpoint * (40000.0 / 100.0);
+      int ticks_treshold = normalized_setpoint * period_in_ticks;
 
       if (phase_counter >= ticks_treshold) {
         triac_open_done = true;
@@ -51,6 +50,9 @@ public:
 
   void rearm()
   {
+    // At this moment phase_counter contains number of ticks per half-period
+    period_in_ticks = phase_counter;
+
     phase_counter = 0;
     triac_open_done = false;
     triac_close_done = false;
@@ -64,6 +66,11 @@ private:
   int phase_counter = 0; // increment every tick
   bool triac_open_done = false;
   bool triac_close_done = false;
+
+  // Holds the number of ticks per half-period (between two zero crosses)
+  // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
+  // Initial value corresponds to 50 Hz
+  int period_in_ticks = 400;
 };
 
 
