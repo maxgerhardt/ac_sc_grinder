@@ -25,6 +25,14 @@ public:
     // TODO: at 100% power (start of sine wave) - wait for safe ignition voltage
     // (should be > 25v, measure at positive wave) before triac control signal remove.
 
+    // If period_in_ticks is not yet counted, only incremet phase_counter,
+    // don't turn on triac anyway.
+    if (period_in_ticks == -1)
+    {
+      phase_counter++;
+      return;
+    }
+
     // If triac was activated (in prev tick) and still active - deactivate it.
     if (triac_open_done && !triac_close_done) {
       triac_close_done = true;
@@ -69,8 +77,8 @@ private:
 
   // Holds the number of ticks per half-period (between two zero crosses)
   // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
-  // Initial value corresponds to 50 Hz
-  int period_in_ticks = 400;
+  // Initial value -1 prevents triac from turning on during first period
+  int period_in_ticks = -1;
 };
 
 

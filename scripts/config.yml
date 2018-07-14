@@ -16,7 +16,7 @@ schema:
       description: >
         Motor armature resistance (Ohm)
       required: true
-      default: 50
+      default: 95
       minimum: 0
       maximum: 200
 

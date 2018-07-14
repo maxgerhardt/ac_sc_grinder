@@ -1,5 +1,8 @@
-STM32CubeMX project
-===================
+Config for STM32CubeMX
+======================
+
+This file is not needed if you use our hardware design. It can be used to adjust 
+the project to different hardware layout. To do this, follow next steps.
 
 ### How to use
 

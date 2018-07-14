@@ -26,6 +26,10 @@ public:
   // drops below the pid_speed output.
   void tick()
   {
+    if (in_knob < cfg_dead_zone_width) knob_normalized = 0.0;
+    else knob_normalized = (in_knob - cfg_dead_zone_width) /
+     (100.0 - cfg_dead_zone_width) * (out_max_clamp - out_min_clamp) + out_min_clamp;
+
     if (!power_limit)
     {
       pid_speed_out = speed_pid_tick();
@@ -38,8 +42,7 @@ public:
       if (power_limit)
       {
       // Recalculate PID_speed_integral to ensure smooth switch to normal mode
-        float knob = normalize(in_knob, cfg_dead_zone_width, out_min_clamp, out_max_clamp);
-        PID_speed_integral = pid_speed_out - (knob - in_speed) * cfg_pid_p;
+        PID_speed_integral = pid_speed_out - (knob_normalized - in_speed) * cfg_pid_p;
         power_limit = false;
       }
       out_power = pid_speed_out;
@@ -87,11 +90,12 @@ private:
   float pid_speed_out = 0;
   bool power_limit = false;
 
+  // knob value normalized to range (cfg_rpm_min_limit..cfg_rpm_max_limit)
+  float knob_normalized;
+
   float speed_pid_tick()
   {
-    float knob = normalize(in_knob, cfg_dead_zone_width, out_min_clamp, out_max_clamp);
-
-    float divergence = knob - in_speed;
+    float divergence = knob_normalized - in_speed;
 
     PID_speed_integral += 1.0 / cfg_pid_i * divergence;
     PID_speed_integral = clamp(PID_speed_integral, out_min_clamp, out_max_clamp);
