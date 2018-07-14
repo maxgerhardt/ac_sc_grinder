@@ -25,7 +25,7 @@ public:
     // TODO: at 100% power (start of sine wave) - wait for safe ignition voltage
     // (should be > 25v, measure at positive wave) before triac control signal remove.
 
-    // If period_in_ticks is not yet counted, only incremet phase_counter,
+    // If period_in_ticks is not yet counted, only increment phase_counter,
     // don't turn on triac anyway.
     if (period_in_ticks == -1)
     {
