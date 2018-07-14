@@ -15,7 +15,7 @@ SpeedController speedController;
 Sensors sensors;
 TriacDriver triacDriver;
 
-uint16_t ADCBuffer[3];
+uint16_t ADCBuffer[4];
 
 
 // ADC data handler, ~ 40 kHz.
@@ -26,8 +26,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
     uint16_t adc_voltage = ADCBuffer[0];
     uint16_t adc_current = ADCBuffer[1];
     uint16_t adc_knob = ADCBuffer[2];
+    uint16_t adc_vrefin = ADCBuffer[3];
 
-    sensors.adc_raw_data_load(adc_voltage, adc_current, adc_knob);
+    sensors.adc_raw_data_load(adc_voltage, adc_current, adc_knob, adc_vrefin);
 }
 
 

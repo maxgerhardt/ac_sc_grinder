@@ -108,7 +108,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 3;
+  hadc1.Init.NbrOfConversion = 4;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -137,6 +137,15 @@ static void MX_ADC1_Init(void)
     */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+    /**Configure Regular Channel
+    */
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  sConfig.Rank = 4;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);

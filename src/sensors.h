@@ -40,21 +40,23 @@ public:
   }
 
   // Store raw ADC data to normalized values
-  void adc_raw_data_load(int adc_voltage, int adc_current, int adc_knob)
+  void adc_raw_data_load(int adc_voltage, int adc_current, int adc_knob, int adc_vrefin)
   {
-    // TODO: calibrate ADC instead of hardcoded 3.3v
+    // Vrefin is internal reference voltage 1.2v
+    // Calculate Vref - true reference voltage
+    // adc_vrefin = 1.2 / Vref * 4096
+    float Vref = 1.2 * 4096 / adc_vrefin;
 
     // 4096 - maximum value of 12-bit integer
     knob = adc_knob * (100.0 / 4096.0);
 
     // cfg_shunt_resistance - in mOhm, divide by 1000
-    // maximum ADC input voltage - 3.3 V
+    // maximum ADC input voltage - Vref
     // shunt amplifier gain - 50
-    // => current = adc_current / 4096.0 / cfg_shunt_resistance / 1000.0 / 50.0 * 3.3;
-    current = adc_current / cfg_shunt_resistance / (4096.0 * 1000.0 * 50.0 / 3.3);
+    current = adc_current / cfg_shunt_resistance / (4096.0 * 1000.0 * 50.0 / Vref);
 
     // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
-    voltage = adc_voltage * (3.3 / 4096.0 / 1.5 * 301.5);
+    voltage = adc_voltage * (Vref / 4096.0 / 1.5 * 301.5);
   }
 
 private:
