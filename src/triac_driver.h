@@ -11,6 +11,8 @@
 #define TRIAC_OFF() HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET)
 #define TRIAC_ON()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET)
 
+// Minimal voltage for guaranteed triac opening.
+#define MIN_IGNITION_VOLTAGE 25.0
 
 class TriacDriver
 {
@@ -23,8 +25,12 @@ public:
   // 40 kHz
   void tick()
   {
-    // TODO: at 100% power (start of sine wave) - wait for safe ignition voltage
-    // (should be > 25v, measure at positive wave) before triac control signal remove.
+    // Measure ticks after zero gross until voltage > safe ignition treshold.
+    // That's done on each positive wave and result is reused on negative wave.
+    if ((voltage >= MIN_IGNITION_VOLTAGE) && (prev_voltage < MIN_IGNITION_VOLTAGE))
+    {
+      safe_ignition_threshold = phase_counter;
+    }
 
     // If period_in_ticks is not yet counted, only increment phase_counter,
     // don't turn on triac anyway.
@@ -33,10 +39,6 @@ public:
       phase_counter++;
       return;
     }
-
-    // Save ticks number when voltage crosses 25v.
-    if ((voltage >= 25.0) && (prev_voltage < 25.0))
-      safe_ignition_threshold = phase_counter;
 
     // If triac was activated (in prev tick) and still active - deactivate it.
     if (triac_open_done && !triac_close_done) {
@@ -48,8 +50,7 @@ public:
     // During positive half-wave - when voltage > 25v
     // During negative half-wave - when ticks number greater then safe
     // ignition threshold
-    if (!triac_open_done && ((voltage > 25.0) ||
-     ((voltage = 0.0) && (phase_counter >= safe_ignition_threshold)))) {
+    if (!triac_open_done && (phase_counter >= safe_ignition_threshold)) {
       // "Linearize" setpoint to phase shift & scale to 0..1
       float normalized_setpoint = clamp(acos(setpoint / 100.0) * (2.0 / 3.1416), 0.0, 1.0);
 
@@ -78,12 +79,6 @@ public:
     // Make sure to disable triac signal, if reset (zero cross) happens
     // immediately after triac enabled
     TRIAC_OFF();
-  }
-
-  // Set current number of ticks as safe ignition threshold
-  void set_safe_ignition_threshold()
-  {
-    safe_ignition_threshold = phase_counter;
   }
 
 private:
