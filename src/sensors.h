@@ -43,7 +43,7 @@ public:
   void adc_raw_data_load(int adc_voltage, int adc_current, int adc_knob, int adc_vrefin)
   {
     // Vrefin is internal reference voltage 1.2v
-    // Calculate Vref - true reference voltage
+    // Vref is ADC reference voltage, equal to ADC supply voltage (near 3.3v)
     // adc_vrefin = 1.2 / Vref * 4096
     float Vref = 1.2 * 4096 / adc_vrefin;
 
@@ -56,7 +56,7 @@ public:
     current = adc_current / cfg_shunt_resistance / (4096.0 * 1000.0 * 50.0 / Vref);
 
     // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
-    voltage = adc_voltage * (Vref / 4096.0 / 1.5 * 301.5);
+    voltage = adc_voltage * Vref / (4096.0 * 1.5 / 301.5);
   }
 
 private:
