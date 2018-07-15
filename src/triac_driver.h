@@ -18,6 +18,7 @@ public:
   // 0..100% of desired triac "power".
   // Will be used to calculate opening phase for each half sine wave
   float setpoint = 0.0;
+  float voltage = 0.0;
 
   // 40 kHz
   void tick()
@@ -33,15 +34,22 @@ public:
       return;
     }
 
-    // If triac was activated (in prev tick) and still active
-    // and voltage > 25v - deactivate it.
-    if (triac_open_done && !triac_close_done && (phase_counter > safe_ignition_threshold)) {
+    // Save ticks number when voltage crosses 25v.
+    if ((voltage >= 25.0) && (prev_voltage < 25.0))
+      safe_ignition_threshold = phase_counter;
+
+    // If triac was activated (in prev tick) and still active - deactivate it.
+    if (triac_open_done && !triac_close_done) {
       triac_close_done = true;
       TRIAC_OFF();
     }
 
     // If triac was not yet activated - check if we can to this
-    if (!triac_open_done) {
+    // During positive half-wave - when voltage > 25v
+    // During negative half-wave - when ticks number greater then safe
+    // ignition threshold
+    if (!triac_open_done && ((voltage > 25.0) ||
+     ((voltage = 0.0) && (phase_counter >= safe_ignition_threshold)))) {
       // "Linearize" setpoint to phase shift & scale to 0..1
       float normalized_setpoint = clamp(acos(setpoint / 100.0) * (2.0 / 3.1416), 0.0, 1.0);
 
@@ -55,6 +63,7 @@ public:
     }
 
     phase_counter++;
+    prev_voltage = voltage;
   }
 
   void rearm()
@@ -91,6 +100,8 @@ private:
   // Initial value set to 0 because during the first period triac
   // won't turn on anyway
   int safe_ignition_threshold = 0;
+
+  float prev_voltage = 0.0;
 
 };
 
