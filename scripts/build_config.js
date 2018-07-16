@@ -31,10 +31,31 @@ function cfg_entry_text(obj, idx) {
 `;
 }
 
-// TODO: use proper iterator with nesting support
-Object.keys(config.schema.properties).forEach(key => {
-  entries += cfg_entry_text(config.schema.properties[key], key);
+
+function iterateSchema_(schema, prefix, fn) {
+  let result = {};
+
+  for (let [ key, item ] of Object.entries(schema || {})) {
+    if (item.type === 'object') {
+      iterateSchema_(item.properties, prefix + key + '.', fn);
+      continue;
+    }
+
+    fn(item, key);
+  }
+
+  return result;
+}
+
+function iterateSchema(config, fn) {
+  iterateSchema_(config.schema.properties || config.schema, '', fn);
+}
+
+
+iterateSchema(config, (item, key) => {
+  entries += cfg_entry_text(item, key);
 });
+
 
 //
 // Create full file content
