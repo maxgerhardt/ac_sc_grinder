@@ -32,7 +32,7 @@ public:
       safe_ignition_threshold = phase_counter;
     }
 
-    // If period_in_ticks is not yet counted, only increment phase_counter,
+    // If period_in_ticks is not yet detected, only increment phase_counter,
     // don't turn on triac anyway.
     if (period_in_ticks == -1)
     {
@@ -97,7 +97,6 @@ private:
   int safe_ignition_threshold = 0;
 
   float prev_voltage = 0.0;
-
 };
 
 

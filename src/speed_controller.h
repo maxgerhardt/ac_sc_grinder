@@ -22,16 +22,17 @@ public:
   // More frequent calls are useless, because we can not control triac faster
 
   // Contains two PIDs. pid_speed used in normal mode, pid_power - in power limit mode.
-  // When motor power exceeds the limit, the pid_power output
-  // drops below the pid_speed output.
+  // When motor power exceeds the limit, the pid_power output drops below
+  // pid_speed output.
   void tick()
   {
     if (in_knob < cfg_dead_zone_width) knob_normalized = 0.0;
     else
     {
       knob_normalized = (in_knob - cfg_dead_zone_width)
-        / (100.0 - cfg_dead_zone_width)
-        * (out_max_clamp - out_min_clamp)
+        // / (100.0 - cfg_dead_zone_width)
+        // * (out_max_clamp - out_min_clamp)
+        * knob_norm_coeff
         + out_min_clamp;
     }
 
@@ -46,7 +47,7 @@ public:
     {
       if (power_limit)
       {
-      // Recalculate PID_speed_integral to ensure smooth switch to normal mode
+        // Recalculate PID_speed_integral to ensure smooth switch to normal mode
         PID_speed_integral = pid_speed_out - (knob_normalized - in_speed) * cfg_pid_p;
         power_limit = false;
       }
@@ -71,6 +72,7 @@ public:
 
     out_min_clamp = cfg_rpm_min_limit / cfg_rpm_max * 100.0;
     out_max_clamp = cfg_rpm_max_limit / cfg_rpm_max * 100.0;
+    knob_norm_coeff =  (out_max_clamp - out_min_clamp) / (100.0 - cfg_dead_zone_width);
   }
 
 private:
@@ -85,9 +87,10 @@ private:
   float cfg_rpm_min_limit;
   float cfg_rpm_max;
 
-  // Cache for clamping limits, calculated on config load
+  // Cache for clamping limits & normalization, calculated on config load
   float out_min_clamp = 0.0;
   float out_max_clamp = 100.0;
+  float knob_norm_coeff = 1;
 
 
   float PID_speed_integral = 0;
@@ -102,6 +105,8 @@ private:
   {
     float divergence = knob_normalized - in_speed;
 
+    // TODO: ???? cfg_pid_i = 0 => result = infinity
+    // TODO: cache division
     PID_speed_integral += 1.0 / cfg_pid_i * divergence;
     PID_speed_integral = clamp(PID_speed_integral, out_min_clamp, out_max_clamp);
 
@@ -114,6 +119,8 @@ private:
   {
     float divergence = 100.0 - in_power;
 
+    // TODO: ???? cfg_pid_i = 0 => result = infinity
+    // TODO: cache division
     PID_power_integral += 1.0 / cfg_pid_i * divergence;
     PID_power_integral = clamp(PID_power_integral, 0.0, 100.0);
 

@@ -40,12 +40,12 @@ public:
   }
 
   // Store raw ADC data to normalized values
-  void adc_raw_data_load(int adc_voltage, int adc_current, int adc_knob, int adc_vrefin)
+  void adc_raw_data_load(int adc_voltage, int adc_current, int adc_knob, int adc_v_refin)
   {
     // Vrefin is internal reference voltage 1.2v
     // Vref is ADC reference voltage, equal to ADC supply voltage (near 3.3v)
     // adc_vrefin = 1.2 / Vref * 4096
-    float Vref = 1.2 * 4096 / adc_vrefin;
+    float v_ref = 1.2 * 4096 / adc_v_refin;
 
     // 4096 - maximum value of 12-bit integer
     knob = adc_knob * (100.0 / 4096.0);
@@ -53,10 +53,10 @@ public:
     // cfg_shunt_resistance - in mOhm, divide by 1000
     // maximum ADC input voltage - Vref
     // shunt amplifier gain - 50
-    current = adc_current / cfg_shunt_resistance / (4096.0 * 1000.0 * 50.0 / Vref);
+    current = adc_current / cfg_shunt_resistance / (4096.0 * 1000.0 * 50.0 / v_ref);
 
     // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
-    voltage = adc_voltage * Vref / (4096.0 * 1.5 / 301.5);
+    voltage = adc_voltage * v_ref / (4096.0 * 1.5 / 301.5);
   }
 
 private:
@@ -66,18 +66,22 @@ private:
   float cfg_motor_resistance;
   float cfg_rpm_max;
 
+  // Buffer for extrapolation during the negative half-period of AC voltage
+  // Record data on positive wave and replay on negative wave.
+  float voltage_buffer[1024];
+
   float p_sum = 0.0;
   int power_tick_counter = 0;
-  // for extrapolation during the negative half-period of voltage
-  float voltage_buffer[1024];
   int power_back_tick_counter = 0;
 
+  // Previous iteration values. Used to detect zero cross.
   float prev_voltage = 0.0;
   float prev_current = 0.0;
 
   void power_tick()
   {
     // TODO: should detect & use phase shift
+    // TODO: do we need both power_tick_counter & power_back_tick_counter?
     if ((current > 0.0) && (voltage > 0.0))
     {
       p_sum += voltage * current;
@@ -86,6 +90,7 @@ private:
     // voltage is negative - make the extrapolation
     else if ((current > 0.0) && (voltage == 0.0))
     {
+      // TODO: '-=' => '+=' ?
       p_sum -= voltage_buffer[power_back_tick_counter] * current;
       power_back_tick_counter++;
       power_tick_counter++;
@@ -93,16 +98,18 @@ private:
 
     if ((prev_current > 0.0) && (current == 0.0))
     {
+      // TODO: ???
       power = p_sum / power_tick_counter / cfg_power_max * 100.0;
       power_tick_counter = 0;
       power_back_tick_counter = 0;
     }
 
+    // TODO: bounds check needed?
     voltage_buffer[power_tick_counter] = voltage;
     prev_current = current;
   }
 
-
+  // TODO: comments
   float r_ekv_sum = 0.0;
   int speed_tick_counter = 0;
 
@@ -118,6 +125,7 @@ private:
     if ((prev_voltage > 0.0) && (voltage == 0.0))
     {
       float r_ekv = r_ekv_sum / speed_tick_counter;
+      // TODO: hardcoded 10 => ?
       speed = 10.0 * r_ekv / cfg_rpm_max;
       speed_tick_counter = 0.0;
     }

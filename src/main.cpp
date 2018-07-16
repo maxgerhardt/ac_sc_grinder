@@ -23,6 +23,9 @@ uint16_t ADCBuffer[4];
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 {
     // TODO: investigate interrupts priorities & atomic data r/w
+
+    // TODO: add median filering to make zero cross checks less fragile.
+
     uint16_t adc_voltage = ADCBuffer[0];
     uint16_t adc_current = ADCBuffer[1];
     uint16_t adc_knob = ADCBuffer[2];
@@ -38,10 +41,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   static float prev_voltage = 0.0;
 
   sensors.tick();
-  triacDriver.voltage = sensors.voltage;
-  triacDriver.tick();
 
   float voltage = sensors.voltage;
+
+  triacDriver.voltage = voltage;
+  triacDriver.tick();
 
   // Poor man zero cross check
   if (((prev_voltage == 0.0) && (voltage > 0.0)) ||
@@ -51,6 +55,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     speedController.in_knob = sensors.knob;
     speedController.in_speed = sensors.speed;
     speedController.in_power = sensors.power;
+    // TODO: PIDs should not drift on 50/60hz switch
     speedController.tick();
 
     triacDriver.setpoint = speedController.out_power;
