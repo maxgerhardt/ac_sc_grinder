@@ -63,7 +63,7 @@ pio run --target upload
 ## Development
 
 Everything is done in `PlatformIO`. If you wish to update conig and regenerate
-headers, you may need `node.js` and run `npm run build`.
+headers, you may need `node.js` and run `npm run config`.
 
 
 ## License
