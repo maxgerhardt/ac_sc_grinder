@@ -7,7 +7,6 @@
 #include "stm32f1xx_hal.h"
 
 
-// TODO: check polarity
 #define TRIAC_OFF() HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET)
 #define TRIAC_ON()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET)
 

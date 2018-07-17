@@ -53,7 +53,7 @@ public:
     // cfg_shunt_resistance - in mOhm, divide by 1000
     // maximum ADC input voltage - Vref
     // shunt amplifier gain - 50
-    current = adc_current / cfg_shunt_resistance / (4096.0 * 1000.0 * 50.0 / v_ref);
+    current = adc_current / cfg_shunt_resistance / (4096.0 / 1000.0 * 50.0 / v_ref);
 
     // resistors in voltage divider - 2*150 kOhm, 1.5 kOhm
     voltage = adc_voltage * v_ref / (4096.0 * 1.5 / 301.5);
@@ -68,11 +68,16 @@ private:
 
   // Buffer for extrapolation during the negative half-period of AC voltage
   // Record data on positive wave and replay on negative wave.
-  float voltage_buffer[1024];
+  float voltage_buffer[800];
 
   float p_sum = 0.0;
+  // Holds number of ticks during the period
+  // Used to calculate the average power for the period
   int power_tick_counter = 0;
-  int power_back_tick_counter = 0;
+  // Holds number of tick when voltage crosses zero
+  // Used to make the extrapolation during the interval
+  // when voltage is negative
+  int voltage_zero_cross_tick_number = 0;
 
   // Previous iteration values. Used to detect zero cross.
   float prev_voltage = 0.0;
@@ -81,7 +86,6 @@ private:
   void power_tick()
   {
     // TODO: should detect & use phase shift
-    // TODO: do we need both power_tick_counter & power_back_tick_counter?
     if ((current > 0.0) && (voltage > 0.0))
     {
       p_sum += voltage * current;
@@ -90,27 +94,37 @@ private:
     // voltage is negative - make the extrapolation
     else if ((current > 0.0) && (voltage == 0.0))
     {
-      // TODO: '-=' => '+=' ?
-      p_sum -= voltage_buffer[power_back_tick_counter] * current;
-      power_back_tick_counter++;
+      // If this is tick when voltage crosses zero,
+      // save tick number
+      if (prev_voltage > 0.0)
+        voltage_zero_cross_tick_number = power_tick_counter;
+      // Now voltage is negative, but current is still positive
+      // Inductance gives power back to the supply
+      // This power must be substracted from power sum
+      p_sum -= voltage_buffer[power_tick_counter - voltage_zero_cross_tick_number] * current;
       power_tick_counter++;
     }
 
     if ((prev_current > 0.0) && (current == 0.0))
     {
-      // TODO: ???
+      // Calculate average power for period and convert
+      // it to percents of max power
       power = p_sum / power_tick_counter / cfg_power_max * 100.0;
       power_tick_counter = 0;
-      power_back_tick_counter = 0;
     }
 
-    // TODO: bounds check needed?
-    voltage_buffer[power_tick_counter] = voltage;
+    if (power_tick_counter < 800)
+      voltage_buffer[power_tick_counter] = voltage;
     prev_current = current;
   }
 
-  // TODO: comments
+  // Motor speed is proportional to the equivalent
+  // resistance r_ekv.
+  // r_ekv_sum holds sum of calculated on each tick r_ekv
+  // At the end of the period, arithmetic mean of r_ekv_sum
+  // is calculated for noise reduction purpose
   float r_ekv_sum = 0.0;
+  // Holds number of ticks
   int speed_tick_counter = 0;
 
 
