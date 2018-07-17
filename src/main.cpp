@@ -80,6 +80,8 @@ int main(void)
   MX_DMA_Init();
   MX_TIM1_Init();
 
+  // TODO: ADC calibration call missed (HAL_ADCEx_Calibration_Start) ?
+
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBuffer, 3);
   HAL_TIM_Base_Start_IT(&htim1);
 
