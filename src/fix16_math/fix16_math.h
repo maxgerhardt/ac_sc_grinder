@@ -31,7 +31,6 @@ static inline fix16_t fix16_clamp_zero_one(fix16_t x) {
   return fix16_max(fix16_min(x, fix16_one), 0);
 }
 
-
 static inline fix16_t fix16_mul(fix16_t x, fix16_t y) {
   // No rounding, no overflow check
   return ((int64_t)x * y) >> 16;
