@@ -11,7 +11,7 @@ typedef int32_t fix16_t;
 static const fix16_t fix16_one = 0x00010000;
 
 
-static fix16_t fix16_from_float(float x) {
+fix16_t fix16_from_float(float x) {
   float tmp = x * fix16_one;
   tmp += tmp < 0 ? -0.5f : 0.5f;
   return (fix16_t)tmp;

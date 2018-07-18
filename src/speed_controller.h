@@ -48,7 +48,7 @@ public:
       if (power_limit)
       {
         // Recalculate PID_speed_integral to ensure smooth switch to normal mode
-        PID_speed_integral = pid_speed_out - (knob_normalized - in_speed) * cfg_pid_p;
+        pid_speed_integral = pid_speed_out - (knob_normalized - in_speed) * cfg_pid_p;
         power_limit = false;
       }
       out_power = pid_speed_out;
@@ -93,8 +93,8 @@ private:
   float knob_norm_coeff = 1;
 
 
-  float PID_speed_integral = 0;
-  float PID_power_integral = 0;
+  float pid_speed_integral = 0;
+  float pid_power_integral = 0;
   float pid_speed_out = 0;
   bool power_limit = false;
 
@@ -107,12 +107,12 @@ private:
 
     // TODO: ???? cfg_pid_i = 0 => result = infinity
     // TODO: cache division
-    PID_speed_integral += 1.0 / cfg_pid_i * divergence;
-    PID_speed_integral = clamp(PID_speed_integral, out_min_clamp, out_max_clamp);
+    pid_speed_integral += 1.0 / cfg_pid_i * divergence;
+    pid_speed_integral = clamp(pid_speed_integral, out_min_clamp, out_max_clamp);
 
     float proportional = cfg_pid_p * divergence;
 
-    return clamp(proportional + PID_speed_integral, out_min_clamp, out_max_clamp);
+    return clamp(proportional + pid_speed_integral, out_min_clamp, out_max_clamp);
   }
 
   float power_pid_tick()
@@ -121,12 +121,12 @@ private:
 
     // TODO: ???? cfg_pid_i = 0 => result = infinity
     // TODO: cache division
-    PID_power_integral += 1.0 / cfg_pid_i * divergence;
-    PID_power_integral = clamp(PID_power_integral, 0.0, 100.0);
+    pid_power_integral += 1.0 / cfg_pid_i * divergence;
+    pid_power_integral = clamp(pid_power_integral, 0.0, 100.0);
 
     float proportional = cfg_pid_p * divergence;
 
-    return clamp(proportional + PID_power_integral, 0.0, 100.0);
+    return clamp(proportional + pid_power_integral, 0.0, 100.0);
   }
 };
 
