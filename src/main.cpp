@@ -4,6 +4,7 @@
 
 
 #include "hw_init.h"
+#include "fix16_math.h"
 #include "eeprom_float.h"
 #include "config_map.h"
 #include "speed_controller.h"

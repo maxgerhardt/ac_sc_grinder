@@ -46,7 +46,6 @@ public:
       eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT)
       * 50.0
       / 1000.0;
-
   }
 
   // Store raw ADC data to normalized values
