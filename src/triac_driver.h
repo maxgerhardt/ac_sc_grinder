@@ -5,28 +5,30 @@
 #include <math.h>
 #include "utils.h"
 #include "stm32f1xx_hal.h"
+#include "fix16_math/fix16_math.h"
+#include "fix16_math/fix16_sinusize.h"
 
 
 #define TRIAC_OFF() HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET)
 #define TRIAC_ON()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET)
 
 // Minimal voltage for guaranteed triac opening.
-#define MIN_IGNITION_VOLTAGE 25.0
+  #define MIN_IGNITION_VOLTAGE 25 << 16 // fix16_t
 
 class TriacDriver
 {
 public:
   // 0..100% of desired triac "power".
   // Will be used to calculate opening phase for each half sine wave
-  float setpoint = 0.0;
-  float voltage = 0.0;
+  fix16_t setpoint = 0;
+  fix16_t voltage = 0;
 
   // 40 kHz
   void tick()
   {
     // Measure ticks after zero gross until voltage > safe ignition treshold.
     // That's done on each positive wave and result is reused on negative wave.
-    if ((voltage >= MIN_IGNITION_VOLTAGE) && (prev_voltage < MIN_IGNITION_VOLTAGE))
+    if ((voltage >= MIN_IGNITION_VOLTAGE) && (fix16_prev_voltage < MIN_IGNITION_VOLTAGE))
     {
       safe_ignition_threshold = phase_counter;
     }
@@ -51,10 +53,11 @@ public:
     // ignition threshold
     if (!triac_open_done && (phase_counter >= safe_ignition_threshold)) {
       // "Linearize" setpoint to phase shift & scale to 0..1
-      float normalized_setpoint = clamp(acos(setpoint / 100.0) * (2.0 / 3.1416), 0.0, 1.0);
+      // float normalized_setpoint = clamp(acos(setpoint / 100.0) * (2.0 / 3.1416), 0.0, 1.0);
+      fix16_t fix16_normalized_setpoint = fix16_sinusize(setpoint);
 
       // Calculate ticks treshold when triac should be enabled
-      int ticks_treshold = normalized_setpoint * period_in_ticks;
+      int ticks_treshold = (fix16_normalized_setpoint * period_in_ticks) >> 16;
 
       if (phase_counter >= ticks_treshold) {
         triac_open_done = true;
@@ -63,7 +66,7 @@ public:
     }
 
     phase_counter++;
-    prev_voltage = voltage;
+    fix16_prev_voltage = voltage;
   }
 
   void rearm()
@@ -95,7 +98,7 @@ private:
   // won't turn on anyway
   int safe_ignition_threshold = 0;
 
-  float prev_voltage = 0.0;
+  fix16_t fix16_prev_voltage = 0;
 };
 
 

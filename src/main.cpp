@@ -27,10 +27,10 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 
     // TODO: add median filering to make zero cross checks less fragile.
 
-    uint16_t adc_voltage = ADCBuffer[0];
-    uint16_t adc_current = ADCBuffer[1];
-    uint16_t adc_knob = ADCBuffer[2];
-    uint16_t adc_vrefin = ADCBuffer[3];
+    fix16_t adc_voltage = ADCBuffer[0];
+    fix16_t adc_current = ADCBuffer[1];
+    fix16_t adc_knob = ADCBuffer[2];
+    fix16_t adc_vrefin = ADCBuffer[3];
 
     sensors.adc_raw_data_load(adc_voltage, adc_current, adc_knob, adc_vrefin);
 }
@@ -39,18 +39,18 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 // 40 kHz ticker for all logic
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  static float prev_voltage = 0.0;
+  static fix16_t fix16_prev_voltage = 0;
 
   sensors.tick();
 
-  float voltage = sensors.voltage;
+  fix16_t fix16_voltage = sensors.voltage;
 
-  triacDriver.voltage = voltage;
+  triacDriver.voltage = fix16_voltage;
   triacDriver.tick();
 
   // Poor man zero cross check
-  if (((prev_voltage == 0.0) && (voltage > 0.0)) ||
-      ((prev_voltage > 0.0) && (voltage == 0.0)))
+  if (((fix16_prev_voltage == 0) && (fix16_voltage > 0)) ||
+      ((fix16_prev_voltage > 0) && (fix16_voltage == 0)))
   {
     // 100/120 Hz, tick speed controller PIDs & rearm triac driver
     speedController.in_knob = sensors.knob;
@@ -63,7 +63,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     triacDriver.rearm();
   }
 
-  prev_voltage = voltage;
+  fix16_prev_voltage = fix16_voltage;
 }
 
 

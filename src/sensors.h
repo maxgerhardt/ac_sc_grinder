@@ -4,6 +4,7 @@
 
 #include "eeprom_float.h"
 #include "config_map.h"
+#include "fix16_math/fix16_math.h"
 
 // At 40000 Hz, 1/2 of sine wave at 50Hz should take ~400 ticks to record
 #define VOLTAGE_BUFFER_SIZE 800
@@ -20,11 +21,11 @@ class Sensors
 {
 public:
 
-  float power = 0.0;
-  float speed = 0.0;
-  float voltage = 0.0;
-  float current = 0.0;
-  float knob = 0.0; // Speed knob physical value, 0..100%
+  fix16_t power = 0;
+  fix16_t speed = 0;
+  fix16_t voltage = 0;
+  fix16_t current = 0;
+  fix16_t knob = 0; // Speed knob physical value, 0..100%
 
   // Should be called with 40kHz frequency
   void tick()
@@ -36,49 +37,63 @@ public:
   // Load config from emulated EEPROM
   void configure()
   {
-    cfg_power_max = eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT);
-    cfg_motor_resistance = eeprom_float_read(CFG_MOTOR_RESISTANCE_ADDR, CFG_MOTOR_RESISTANCE_DEFAULT);
-    cfg_rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
+    fix16_cfg_power_max_inv = fix16_from_float(1.0 /
+       eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT));
+    fix16_cfg_motor_resistance = fix16_from_float(eeprom_float_read(CFG_MOTOR_RESISTANCE_ADDR,
+       CFG_MOTOR_RESISTANCE_DEFAULT));
+    fix16_cfg_rpm_max_inv = fix16_from_float(1.0 /
+       eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT));
 
     // config shunt resistance - in mOhm (divide by 1000)
     // shunt amplifier gain - 50
-    cfg_shunt_resistance =
-      eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT)
+    fix16_cfg_shunt_resistance_inv = fix16_from_float( 1.0 /
+       eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT)
       * 50.0
-      / 1000.0;
+      / 1000.0);
   }
 
   // Store raw ADC data to normalized values
-  void adc_raw_data_load(int adc_voltage, int adc_current, int adc_knob, int adc_v_refin)
+  void adc_raw_data_load(uint16_t adc_voltage, uint16_t adc_current,
+                         uint16_t adc_knob, uint16_t adc_v_refin)
   {
     // Vrefin is internal reference voltage 1.2v
     // Vref is ADC reference voltage, equal to ADC supply voltage (near 3.3v)
     // adc_vrefin = 1.2 / Vref * 4096
-    float v_ref = 1.2 * 4096 / adc_v_refin;
+    // float v_ref = 1.2 * 4096 / adc_v_refin;
+
+    fix16_t fix16_v_ref = fix16_div (v_refin, adc_v_refin << 2);
 
     // 4096 - maximum value of 12-bit integer
-    knob = adc_knob * (100.0 / 4096.0);
+    // knob = adc_knob * (100.0 / 4096.0);
+    knob = adc_knob << 2;
 
     // maximum ADC input voltage - Vref
-    current = adc_current / cfg_shunt_resistance / (4096.0 / v_ref);
+    // current = adc_current / cfg_shunt_resistance / (4096.0 / v_ref);
 
-    // resistors in voltage divider - [ 2*150 kOhm, 1.5 kOhm ]
-    // (divider ratio => 201)
-    voltage = adc_voltage * v_ref / (4096.0 * 1.5 / 301.5);
+    current = fix16_mul(
+        fix16_mul(adc_current << 2, fix16_cfg_shunt_resistance_inv),
+        fix16_v_ref
+      );
+
+    // voltage = adc_voltage * v_ref / (4096.0 * 1.5 / 301.5);
+    voltage = fix16_mul(
+      fix16_mul(adc_voltage << 2, fix16_v_ref),
+      voltage_norm
+    );
   }
 
 private:
   // Conig info
-  float cfg_shunt_resistance;
-  float cfg_power_max;
-  float cfg_motor_resistance;
-  float cfg_rpm_max;
+  fix16_t fix16_cfg_shunt_resistance_inv;
+  fix16_t fix16_cfg_power_max_inv;
+  fix16_t fix16_cfg_motor_resistance;
+  fix16_t fix16_cfg_rpm_max_inv;
 
   // Buffer for extrapolation during the negative half-period of AC voltage
   // Record data on positive wave and replay on negative wave.
-  float voltage_buffer[VOLTAGE_BUFFER_SIZE];
+  fix16_t fix16_voltage_buffer[VOLTAGE_BUFFER_SIZE];
 
-  float p_sum = 0.0;
+  fix16_t fix16_p_sum = 0;
 
   // Holds number of ticks during the period
   // Used to calculate the average power for the period
@@ -90,24 +105,24 @@ private:
   int voltage_zero_cross_tick_count = 0;
 
   // Previous iteration values. Used to detect zero cross.
-  float prev_voltage = 0.0;
-  float prev_current = 0.0;
+  fix16_t fix16_prev_voltage = 0;
+  fix16_t fix16_prev_current = 0;
 
   void power_tick()
   {
     // TODO: should detect & use phase shift
 
     // Positive sine wave
-    if ((current > 0.0) && (voltage > 0.0))
+    if ((current > 0) && (voltage > 0))
     {
-      p_sum += voltage * current;
+      fix16_p_sum += fix16_mul(voltage, current);
       power_tick_counter++;
     }
     // Negative sine vave => extrapolate voltage
-    else if ((current > 0.0) && (voltage == 0.0))
+    else if ((current > 0) && (voltage == 0))
     {
       // If this is tick when voltage crosses zero (down), save tick number
-      if (prev_voltage > 0.0)
+      if (fix16_prev_voltage > 0)
       {
         voltage_zero_cross_tick_count = power_tick_counter;
       }
@@ -115,19 +130,24 @@ private:
       // Now voltage is negative, but current is still positive
       // Inductance gives power back to the supply
       // This power must be substracted from power sum
-      float extrapolated_voltage = voltage_buffer[power_tick_counter - voltage_zero_cross_tick_count];
+      fix16_t fix16_extrapolated_voltage = fix16_voltage_buffer[power_tick_counter -
+       voltage_zero_cross_tick_count];
 
-      p_sum -= extrapolated_voltage * current;
+      fix16_p_sum -= fix16_mul(fix16_extrapolated_voltage, current);
       power_tick_counter++;
     }
 
-    if ((prev_current > 0.0) && (current == 0.0))
+    if ((fix16_prev_current > 0) && (current == 0))
     {
       // Now we are at negative wave and shunt current ended
       // Time to calculate average power, and convert it to % or `cfg_power_max`
 
       // TODO: fix logic
-      power = p_sum / power_tick_counter / cfg_power_max * 100.0;
+      // power = p_sum / power_tick_counter / cfg_power_max * 100.0;
+      power = fix16_mul(
+        fix16_p_sum / power_tick_counter,
+        fix16_cfg_power_max_inv
+      );
       power_tick_counter = 0;
     }
 
@@ -135,37 +155,46 @@ private:
     // memory corruption for safety.
     if (power_tick_counter < VOLTAGE_BUFFER_SIZE)
     {
-      voltage_buffer[power_tick_counter] = voltage;
+      fix16_voltage_buffer[power_tick_counter] = voltage;
     }
-    prev_current = current;
+    fix16_prev_current = current;
   }
 
   // Motor speed is proportional to the equivalent resistance `r_ekv`.
   // `r_ekv_sum` holds sum of calculated on each tick `r_ekv`
   // At the end of the period, arithmetic mean of `r_ekv_sum`
   // is calculated for noise reduction purpose.
-  float r_ekv_sum = 0.0;
+  fix16_t fix16_r_ekv_sum = 0;
   // Holds number of ticks
   int speed_tick_counter = 0;
+
+  // v_refint is 1.2v according to datasheet
+  fix16_t v_refin = fix16_from_float(1.2);
+  // resistors in voltage divider - [ 2*150 kOhm, 1.5 kOhm ]
+  // (divider ratio => 201)
+  fix16_t voltage_norm = fix16_from_float(301.5/1.5);
 
 
   void speed_tick()
   {
-    if ((current > 0.0) && (voltage > 0.0))
+    if ((current > 0) && (voltage > 0))
     {
-      r_ekv_sum += voltage/current - cfg_motor_resistance;
+      // r_ekv_sum += voltage/current - cfg_motor_resistance;
+      fix16_r_ekv_sum += fix16_div(voltage, current) - fix16_cfg_motor_resistance;
       speed_tick_counter++;
     }
 
-    if ((prev_voltage > 0.0) && (voltage == 0.0))
+    if ((fix16_prev_voltage > 0) && (voltage == 0))
     {
-      float r_ekv = r_ekv_sum / speed_tick_counter;
+      // float r_ekv = r_ekv_sum / speed_tick_counter;
+      fix16_t fix16_r_ekv = fix16_r_ekv_sum / speed_tick_counter;
       // TODO: hardcoded 10 => ?
-      speed = 10.0 * r_ekv / cfg_rpm_max;
-      speed_tick_counter = 0.0;
+      // speed = 10.0 * r_ekv / cfg_rpm_max;
+      speed = fix16_mul(10 * fix16_r_ekv, fix16_cfg_rpm_max_inv);
+      speed_tick_counter = 0;
     }
 
-    prev_voltage = voltage;
+    fix16_prev_voltage = voltage;
   }
 };
 
