@@ -6,7 +6,7 @@
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
 
-// At 40000 Hz, 1/2 of sine wave at 50Hz should take ~400 ticks to record
+// At 40000 Hz, 1/2 of 50Hz sine wave should take ~400 ticks to record
 #define VOLTAGE_BUFFER_SIZE 800
 
 /*
@@ -138,11 +138,14 @@ private:
     if ((prev_current > 0) && (current == 0))
     {
       // Now we are at negative wave and shunt current ended
-      // Time to calculate average power, and convert it to % or `cfg_power_max`
+      // Time to calculate average power, and normalize it to [0.0..1.0]
+      // normalized power = (p_sum / power_tick_counter) / cfg_power_max;
 
-      // TODO: fix logic
-      // power = p_sum / power_tick_counter / cfg_power_max * 100.0;
-      power = fix16_mul(p_sum / power_tick_counter, cfg_power_max_inv);
+      // protect from zero div (that should never happen)
+      if (power_tick_counter > 0)
+      {
+        power = fix16_mul(p_sum / power_tick_counter, cfg_power_max_inv);
+      }
       power_tick_counter = 0;
     }
 
@@ -176,11 +179,16 @@ private:
 
     if ((prev_voltage > 0) && (voltage == 0))
     {
-      // float r_ekv = r_ekv_sum / speed_tick_counter;
-      fix16_t r_ekv = r_ekv_sum / speed_tick_counter;
-      // TODO: hardcoded 10 => ?
-      // speed = 10.0 * r_ekv / cfg_rpm_max;
-      speed = fix16_mul(10 * r_ekv, cfg_rpm_max_inv);
+      // Now we are at negative wave, calculate [normalized] speed
+
+      // protect from zero div (that should never happen)
+      if (speed_tick_counter > 0)
+      {
+        fix16_t r_ekv = r_ekv_sum / speed_tick_counter;
+        // TODO: hardcoded 10 => ?
+        // speed = 10.0 * r_ekv / cfg_rpm_max;
+        speed = fix16_mul(10 * r_ekv, cfg_rpm_max_inv);
+      }
       speed_tick_counter = 0;
     }
 

@@ -35,6 +35,7 @@ public:
 
     fix16_t pid_power_out = power_pid_tick();
 
+    // TODO: check logic, isn't pid_power_out in [0..1]?
     if (pid_speed_out <= pid_power_out)
     {
       if (power_limit)
@@ -121,11 +122,9 @@ private:
 
   fix16_t speed_pid_tick()
   {
-    // float divergence = knob_normalized - in_speed;
     fix16_t divergence = knob_normalized - in_speed;
 
     // TODO: ???? cfg_pid_i = 0 => result = infinity
-    // TODO: cache division
     // pid_speed_integral += 1.0 / cfg_pid_i * divergence;
     fix16_t tmp = pid_speed_integral + fix16_mul(cfg_pid_i_inv, divergence);
     pid_speed_integral = fix16_clamp(tmp, out_min_clamp_norm, out_max_clamp_norm);
@@ -145,9 +144,8 @@ private:
     fix16_t divergence = fix16_one - in_power;
 
     // TODO: ???? cfg_pid_i = 0 => result = infinity
-    // TODO: cache division
     // pid_power_integral += 1.0 / cfg_pid_i * divergence;
-    fix16_t tmp = pid_power_integral +fix16_mul(cfg_pid_i_inv, divergence);
+    fix16_t tmp = pid_power_integral + fix16_mul(cfg_pid_i_inv, divergence);
     pid_power_integral = fix16_clamp_zero_one(tmp);
 
     fix16_t proportional = fix16_mul(cfg_pid_p, divergence);
