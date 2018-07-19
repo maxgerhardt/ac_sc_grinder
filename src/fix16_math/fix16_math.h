@@ -17,6 +17,8 @@ fix16_t fix16_from_float(float x) {
   return (fix16_t)tmp;
 }
 
+#define F16(x) ((fix16_t)(((x) >= 0) ? ((x) * 65536.0 + 0.5) : ((x) * 65536.0 - 0.5)))
+
 static inline float fix16_to_float(fix16_t x) { return (float)x / fix16_one; }
 
 static inline fix16_t fix16_min(fix16_t x, fix16_t y) { return x < y ? x : y; }

@@ -4,7 +4,6 @@
 
 #include "eeprom_float.h"
 #include "config_map.h"
-#include "utils.h"
 #include "fix16_math/fix16_math.h"
 
 
@@ -27,14 +26,7 @@ public:
   // pid_speed output.
   void tick()
   {
-    if (in_knob < fix16_cfg_dead_zone_width) fix16_knob_normalized = 0;
-    else
-    {
-      // / (100.0 - cfg_dead_zone_width)
-      // * (out_max_clamp - out_min_clamp)
-      fix16_knob_normalized = fix16_mul((in_knob - fix16_cfg_dead_zone_width),
-       fix16_knob_norm_coeff) + fix16_out_min_clamp;
-    }
+    fix16_knob_normalized = normalize_knob(in_knob);
 
     if (!power_limit)
     {
@@ -49,7 +41,7 @@ public:
       {
         // Recalculate PID_speed_integral to ensure smooth switch to normal mode
         fix16_pid_speed_integral = fix16_pid_speed_out -
-         fix16_mul((fix16_knob_normalized - in_speed), fix16_cfg_pid_p);
+          fix16_mul((fix16_knob_normalized - in_speed), fix16_cfg_pid_p);
         power_limit = false;
       }
       out_power = fix16_pid_speed_out;
@@ -65,7 +57,7 @@ public:
   void configure()
   {
     fix16_cfg_dead_zone_width = fix16_from_float(eeprom_float_read(CFG_DEAD_ZONE_WIDTH_ADDR,
-       CFG_DEAD_ZONE_WIDTH_DEFAULT));
+       CFG_DEAD_ZONE_WIDTH_DEFAULT) / 100.0);
     fix16_cfg_pid_p = fix16_from_float(eeprom_float_read(CFG_PID_P_ADDR,
        CFG_PID_P_DEFAULT));
     fix16_cfg_pid_i_inv = fix16_from_float(1.0 / eeprom_float_read(CFG_PID_I_ADDR,
@@ -109,7 +101,19 @@ private:
   // knob value normalized to range (cfg_rpm_min_limit..cfg_rpm_max_limit)
   fix16_t fix16_knob_normalized;
 
-  float speed_pid_tick()
+  // Apply min/max limits to knob output
+  fix16_t normalize_knob(fix16_t knob)
+  {
+    if (in_knob < fix16_cfg_dead_zone_width) return 0;
+
+    return fix16_mul(
+      (in_knob - fix16_cfg_dead_zone_width),
+      fix16_knob_norm_coeff
+    ) + fix16_out_min_clamp;
+  }
+
+
+  fix16_t speed_pid_tick()
   {
     // float divergence = knob_normalized - in_speed;
     fix16_t fix16_divergence = fix16_knob_normalized - in_speed;
@@ -118,7 +122,6 @@ private:
     // TODO: cache division
     // pid_speed_integral += 1.0 / cfg_pid_i * divergence;
     fix16_pid_speed_integral += fix16_mul(fix16_cfg_pid_i_inv, fix16_divergence);
-    // pid_speed_integral = clamp(pid_speed_integral, out_min_clamp, out_max_clamp);
     fix16_pid_speed_integral = fix16_clamp(fix16_pid_speed_integral,
        fix16_out_min_clamp, fix16_out_max_clamp);
 
@@ -128,7 +131,7 @@ private:
        fix16_out_min_clamp, fix16_out_max_clamp);
   }
 
-  float power_pid_tick()
+  fix16_t power_pid_tick()
   {
     // float divergence = 100.0 - in_power;
     fix16_t fix16_divergence = fix16_one - in_power;

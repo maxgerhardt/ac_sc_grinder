@@ -27,10 +27,10 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 
     // TODO: add median filering to make zero cross checks less fragile.
 
-    fix16_t adc_voltage = ADCBuffer[0];
-    fix16_t adc_current = ADCBuffer[1];
-    fix16_t adc_knob = ADCBuffer[2];
-    fix16_t adc_vrefin = ADCBuffer[3];
+    uint16_t adc_voltage = ADCBuffer[0];
+    uint16_t adc_current = ADCBuffer[1];
+    uint16_t adc_knob = ADCBuffer[2];
+    uint16_t adc_vrefin = ADCBuffer[3];
 
     sensors.adc_raw_data_load(adc_voltage, adc_current, adc_knob, adc_vrefin);
 }

@@ -2,8 +2,6 @@
 #define __TRIAC_DRIVER__
 
 
-#include <math.h>
-#include "utils.h"
 #include "stm32f1xx_hal.h"
 #include "fix16_math/fix16_math.h"
 #include "fix16_math/fix16_sinusize.h"
@@ -13,7 +11,7 @@
 #define TRIAC_ON()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET)
 
 // Minimal voltage for guaranteed triac opening.
-  #define MIN_IGNITION_VOLTAGE 25 << 16 // fix16_t
+#define MIN_IGNITION_VOLTAGE 25
 
 class TriacDriver
 {
@@ -26,10 +24,12 @@ public:
   // 40 kHz
   void tick()
   {
-    // Measure ticks after zero gross until voltage > safe ignition treshold.
+    // Measure ticks after positive zero gross until voltage > MIN_IGNITION_VOLTAGE.
     // That's done on each positive wave and result is reused on negative wave.
-    if ((voltage >= MIN_IGNITION_VOLTAGE) && (fix16_prev_voltage < MIN_IGNITION_VOLTAGE))
+    if ((voltage >= F16(MIN_IGNITION_VOLTAGE)) &&
+        (fix16_prev_voltage < F16(MIN_IGNITION_VOLTAGE)))
     {
+      // TODO: should updte only after count done
       safe_ignition_threshold = phase_counter;
     }
 
@@ -47,13 +47,9 @@ public:
       TRIAC_OFF();
     }
 
-    // If triac was not yet activated - check if we can to this
-    // During positive half-wave - when voltage > 25v
-    // During negative half-wave - when ticks number greater then safe
-    // ignition threshold
+    // If triac was not yet activated - check if we can do this
     if (!triac_open_done && (phase_counter >= safe_ignition_threshold)) {
       // "Linearize" setpoint to phase shift & scale to 0..1
-      // float normalized_setpoint = clamp(acos(setpoint / 100.0) * (2.0 / 3.1416), 0.0, 1.0);
       fix16_t fix16_normalized_setpoint = fix16_sinusize(setpoint);
 
       // Calculate ticks treshold when triac should be enabled

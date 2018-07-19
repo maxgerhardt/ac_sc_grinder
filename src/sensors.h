@@ -38,18 +38,20 @@ public:
   void configure()
   {
     fix16_cfg_power_max_inv = fix16_from_float(1.0 /
-       eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT));
-    fix16_cfg_motor_resistance = fix16_from_float(eeprom_float_read(CFG_MOTOR_RESISTANCE_ADDR,
-       CFG_MOTOR_RESISTANCE_DEFAULT));
-    fix16_cfg_rpm_max_inv = fix16_from_float(1.0 /
-       eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT));
-
+      eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT));
+    fix16_cfg_motor_resistance = fix16_from_float(
+      eeprom_float_read(CFG_MOTOR_RESISTANCE_ADDR, CFG_MOTOR_RESISTANCE_DEFAULT)
+    );
+    fix16_cfg_rpm_max_inv = fix16_from_float(
+      1.0 / eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT)
+    );
     // config shunt resistance - in mOhm (divide by 1000)
     // shunt amplifier gain - 50
-    fix16_cfg_shunt_resistance_inv = fix16_from_float( 1.0 /
-       eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT)
-      * 50.0
-      / 1000.0);
+    fix16_cfg_shunt_resistance_inv = fix16_from_float(1.0 /
+      (eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT)
+        * 50.0
+        / 1000.0)
+    );
   }
 
   // Store raw ADC data to normalized values
@@ -61,24 +63,26 @@ public:
     // adc_vrefin = 1.2 / Vref * 4096
     // float v_ref = 1.2 * 4096 / adc_v_refin;
 
-    fix16_t fix16_v_ref = fix16_div (v_refin, adc_v_refin << 2);
+    fix16_t fix16_v_ref = fix16_div(F16(1.2), adc_v_refin << 2);
 
     // 4096 - maximum value of 12-bit integer
-    // knob = adc_knob * (100.0 / 4096.0);
+    // normalize to fix16_t[0.0..1.0]
     knob = adc_knob << 2;
 
     // maximum ADC input voltage - Vref
-    // current = adc_current / cfg_shunt_resistance / (4096.0 / v_ref);
+    // current = fix16_adc_current_norm * fix16_v_ref / cfg_shunt_resistance
 
     current = fix16_mul(
-        fix16_mul(adc_current << 2, fix16_cfg_shunt_resistance_inv),
-        fix16_v_ref
-      );
+      fix16_mul(adc_current << 2, fix16_cfg_shunt_resistance_inv),
+      fix16_v_ref
+    );
 
-    // voltage = adc_voltage * v_ref / (4096.0 * 1.5 / 301.5);
+    // resistors in voltage divider - [ 2*150 kOhm, 1.5 kOhm ]
+    // (divider ratio => 201)
+    // voltage = fix16_adc_voltage * fix16_v_ref * (301.5 / 1.5);
     voltage = fix16_mul(
       fix16_mul(adc_voltage << 2, fix16_v_ref),
-      voltage_norm
+      F16(301.5/1.5)
     );
   }
 
@@ -130,10 +134,9 @@ private:
       // Now voltage is negative, but current is still positive
       // Inductance gives power back to the supply
       // This power must be substracted from power sum
-      fix16_t fix16_extrapolated_voltage = fix16_voltage_buffer[power_tick_counter -
-       voltage_zero_cross_tick_count];
+      fix16_t extrapolated_voltage = fix16_voltage_buffer[power_tick_counter - voltage_zero_cross_tick_count];
 
-      fix16_p_sum -= fix16_mul(fix16_extrapolated_voltage, current);
+      fix16_p_sum -= fix16_mul(extrapolated_voltage, current);
       power_tick_counter++;
     }
 
@@ -144,10 +147,7 @@ private:
 
       // TODO: fix logic
       // power = p_sum / power_tick_counter / cfg_power_max * 100.0;
-      power = fix16_mul(
-        fix16_p_sum / power_tick_counter,
-        fix16_cfg_power_max_inv
-      );
+      power = fix16_mul(fix16_p_sum / power_tick_counter, fix16_cfg_power_max_inv);
       power_tick_counter = 0;
     }
 
@@ -167,12 +167,6 @@ private:
   fix16_t fix16_r_ekv_sum = 0;
   // Holds number of ticks
   int speed_tick_counter = 0;
-
-  // v_refint is 1.2v according to datasheet
-  fix16_t v_refin = fix16_from_float(1.2);
-  // resistors in voltage divider - [ 2*150 kOhm, 1.5 kOhm ]
-  // (divider ratio => 201)
-  fix16_t voltage_norm = fix16_from_float(301.5/1.5);
 
 
   void speed_tick()
