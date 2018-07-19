@@ -27,7 +27,7 @@ public:
     // Measure ticks after positive zero gross until voltage > MIN_IGNITION_VOLTAGE.
     // That's done on each positive wave and result is reused on negative wave.
     if ((voltage >= F16(MIN_IGNITION_VOLTAGE)) &&
-        (fix16_prev_voltage < F16(MIN_IGNITION_VOLTAGE)))
+        (prev_voltage < F16(MIN_IGNITION_VOLTAGE)))
     {
       // TODO: should updte only after count done
       safe_ignition_threshold = phase_counter;
@@ -50,10 +50,10 @@ public:
     // If triac was not yet activated - check if we can do this
     if (!triac_open_done && (phase_counter >= safe_ignition_threshold)) {
       // "Linearize" setpoint to phase shift & scale to 0..1
-      fix16_t fix16_normalized_setpoint = fix16_sinusize(setpoint);
+      fix16_t normalized_setpoint = fix16_sinusize(setpoint);
 
       // Calculate ticks treshold when triac should be enabled
-      int ticks_treshold = (fix16_normalized_setpoint * period_in_ticks) >> 16;
+      int ticks_treshold = (normalized_setpoint * period_in_ticks) >> 16;
 
       if (phase_counter >= ticks_treshold) {
         triac_open_done = true;
@@ -62,7 +62,7 @@ public:
     }
 
     phase_counter++;
-    fix16_prev_voltage = voltage;
+    prev_voltage = voltage;
   }
 
   void rearm()
@@ -94,7 +94,7 @@ private:
   // won't turn on anyway
   int safe_ignition_threshold = 0;
 
-  fix16_t fix16_prev_voltage = 0;
+  fix16_t prev_voltage = 0;
 };
 
 
