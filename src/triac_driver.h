@@ -52,8 +52,11 @@ public:
       // "Linearize" setpoint to phase shift & scale to 0..1
       fix16_t normalized_setpoint = fix16_sinusize(setpoint);
 
-      // Calculate ticks treshold when triac should be enabled
-      uint32_t ticks_treshold = (normalized_setpoint * period_in_ticks) >> 16;
+      // Calculate ticks treshold when triac should be enabled:
+      // "mirror" and "enlarge" normalized setpoint
+      uint32_t ticks_treshold = fix16_to_int(
+        (fix16_one - normalized_setpoint) * period_in_ticks
+      );
 
       if (phase_counter >= ticks_treshold) {
         triac_open_done = true;

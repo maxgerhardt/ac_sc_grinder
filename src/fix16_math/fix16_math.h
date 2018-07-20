@@ -21,25 +21,37 @@ fix16_t fix16_from_float(float x) {
 
 static inline float fix16_to_float(fix16_t x) { return (float)x / fix16_one; }
 
+static inline int fix16_to_int(fix16_t x)
+{
+  if (x > 0) return (x + (fix16_one >> 1)) >> 16;
+  return (x - (fix16_one >> 1)) >> 16;
+}
+
 static inline fix16_t fix16_min(fix16_t x, fix16_t y) { return x < y ? x : y; }
 
 static inline fix16_t fix16_max(fix16_t x, fix16_t y) { return x > y ? x : y; }
 
-static inline fix16_t fix16_clamp(fix16_t x, fix16_t min, fix16_t max) {
+static inline fix16_t fix16_clamp(fix16_t x, fix16_t min, fix16_t max)
+{
   return fix16_max(fix16_min(x, max), min);
 }
 
-static inline fix16_t fix16_clamp_zero_one(fix16_t x) {
-  return fix16_max(fix16_min(x, fix16_one), 0);
+// Clamp x to be in (0.0 <= x < 1.0) range
+// !!! 1.0 is NOT included
+static inline fix16_t fix16_clamp_zero_one(fix16_t x)
+{
+  return fix16_max(fix16_min(x, F16(1) - 1), 0);
 }
 
-static inline fix16_t fix16_mul(fix16_t x, fix16_t y) {
+static inline fix16_t fix16_mul(fix16_t x, fix16_t y)
+{
   // No rounding, no overflow check
   return ((int64_t)x * y) >> 16;
 }
 
 // TODO: temporary stub, check binary and replace if needed
-static inline fix16_t fix16_div(fix16_t x, fix16_t y) {
+static inline fix16_t fix16_div(fix16_t x, fix16_t y)
+{
   // No rounding, no overflow check
   return ((((int64_t)x) << 16) / y) >> 16;
 }
