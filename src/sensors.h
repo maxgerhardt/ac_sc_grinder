@@ -95,12 +95,12 @@ private:
 
   // Holds number of ticks during the period
   // Used to calculate the average power for the period
-  int power_tick_counter = 0;
+  uint32_t power_tick_counter = 0;
 
   // Holds number of tick when voltage crosses zero
   // Used to make the extrapolation during the interval
   // when voltage is negative
-  int voltage_zero_cross_tick_count = 0;
+  uint32_t voltage_zero_cross_tick_count = 0;
 
   // Previous iteration values. Used to detect zero cross.
   fix16_t prev_voltage = 0;
@@ -117,7 +117,7 @@ private:
       power_tick_counter++;
     }
     // Negative sine vave => extrapolate voltage
-    else if ((current > 0) && (voltage == 0))
+    else if (voltage == 0)
     {
       // If this is tick when voltage crosses zero (down), save tick number
       if (prev_voltage > 0)
@@ -125,13 +125,16 @@ private:
         voltage_zero_cross_tick_count = power_tick_counter;
       }
 
-      // Now voltage is negative, but current is still positive
-      // Inductance gives power back to the supply
-      // This power must be substracted from power sum
-      fix16_t extrapolated_voltage = voltage_buffer[power_tick_counter - voltage_zero_cross_tick_count];
+      if (current > 0)
+      {
+        // Now voltage is negative, but current is still positive
+        // Inductance gives power back to the supply
+        // This power must be substracted from power sum
+        fix16_t extrapolated_voltage = voltage_buffer[power_tick_counter - voltage_zero_cross_tick_count];
 
-      p_sum -= fix16_mul(extrapolated_voltage, current);
-      power_tick_counter++;
+        p_sum -= fix16_mul(extrapolated_voltage, current);
+        power_tick_counter++;
+      }
     }
 
     if ((prev_current > 0) && (current == 0))
@@ -164,16 +167,19 @@ private:
   // is calculated for noise reduction purpose.
   fix16_t r_ekv_sum = 0;
   // Holds number of ticks
-  int speed_tick_counter = 0;
+  uint32_t speed_tick_counter = 0;
 
 
   void speed_tick()
   {
-    if ((current > 0) && (voltage > 0))
+    if (voltage > 0)
     {
-      // r_ekv_sum += voltage/current - cfg_motor_resistance;
-      r_ekv_sum += fix16_div(voltage, current) - cfg_motor_resistance;
-      speed_tick_counter++;
+      if (current > 0)
+      {
+        // r_ekv_sum += voltage/current - cfg_motor_resistance;
+        r_ekv_sum += fix16_div(voltage, current) - cfg_motor_resistance;
+        speed_tick_counter++;
+      }
     }
 
     if ((prev_voltage > 0) && (voltage == 0))

@@ -44,5 +44,4 @@ static inline fix16_t fix16_div(fix16_t x, fix16_t y) {
   return ((((int64_t)x) << 16) / y) >> 16;
 }
 
-
 #endif

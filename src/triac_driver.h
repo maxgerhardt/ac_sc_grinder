@@ -53,7 +53,7 @@ public:
       fix16_t normalized_setpoint = fix16_sinusize(setpoint);
 
       // Calculate ticks treshold when triac should be enabled
-      int ticks_treshold = (normalized_setpoint * period_in_ticks) >> 16;
+      uint32_t ticks_treshold = (normalized_setpoint * period_in_ticks) >> 16;
 
       if (phase_counter >= ticks_treshold) {
         triac_open_done = true;
@@ -80,19 +80,19 @@ public:
   }
 
 private:
-  int phase_counter = 0; // increment every tick
+  uint32_t phase_counter = 0; // increment every tick
   bool triac_open_done = false;
   bool triac_close_done = false;
 
   // Holds the number of ticks per half-period (between two zero crosses)
   // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
   // Initial value -1 prevents triac from turning on during first period
-  int period_in_ticks = -1;
+  int32_t period_in_ticks = -1;
 
   // Holds ticks threshold when triac control signal is safe to turn off, vlotage > 25v
   // Initial value set to 0 because during the first period triac
   // won't turn on anyway
-  int safe_ignition_threshold = 0;
+  uint32_t safe_ignition_threshold = 0;
 
   fix16_t prev_voltage = 0;
 };

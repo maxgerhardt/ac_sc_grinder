@@ -63,21 +63,18 @@ public:
        CFG_PID_P_DEFAULT));
     cfg_pid_i_inv = fix16_from_float(1.0 / eeprom_float_read(CFG_PID_I_ADDR,
        CFG_PID_P_DEFAULT));
-    cfg_rpm_max_limit = fix16_from_float(eeprom_float_read(CFG_RPM_MAX_LIMIT_ADDR,
-       CFG_RPM_MAX_LIMIT_DEFAULT));
-    cfg_rpm_min_limit = fix16_from_float(eeprom_float_read(CFG_RPM_MIN_LIMIT_ADDR,
-       CFG_RPM_MIN_LIMIT_DEFAULT));
-    cfg_rpm_max = fix16_from_float(eeprom_float_read(CFG_RPM_MAX_ADDR,
-       CFG_RPM_MAX_DEFAULT));
 
-    out_min_clamp_norm = fix16_clamp_zero_one(
-      fix16_div(cfg_rpm_min_limit, cfg_rpm_max)
+    float _rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
+
+    cfg_rpm_max_limit_norm = fix16_from_float(
+      eeprom_float_read(CFG_RPM_MAX_LIMIT_ADDR, CFG_RPM_MAX_LIMIT_DEFAULT) / _rpm_max
     );
-    out_max_clamp_norm = fix16_clamp_zero_one(
-      fix16_div(cfg_rpm_max_limit, cfg_rpm_max)
+    cfg_rpm_min_limit_norm = fix16_from_float(
+      eeprom_float_read(CFG_RPM_MIN_LIMIT_ADDR, CFG_RPM_MIN_LIMIT_DEFAULT) / _rpm_max
     );
+
     knob_norm_coeff =  fix16_div(
-      out_max_clamp_norm - out_min_clamp_norm,
+      cfg_rpm_max_limit_norm - cfg_rpm_min_limit_norm,
       fix16_one - cfg_dead_zone_width_norm
     );
   }
@@ -88,25 +85,20 @@ private:
   // PID coefficients
   fix16_t cfg_pid_p;
   fix16_t cfg_pid_i_inv;
-  // In theory limits should be in % if max, but it's more convenient
-  // for users to work with direct RPM values.
-  fix16_t cfg_rpm_max_limit;
-  fix16_t cfg_rpm_min_limit;
-  fix16_t cfg_rpm_max;
+  // Config limits are now in normalized [0.0..1.0] form of max motor RPM.
+  fix16_t cfg_rpm_max_limit_norm;
+  fix16_t cfg_rpm_min_limit_norm;
 
-  // Cache for clamping limits & normalization, calculated on config load
-  fix16_t out_min_clamp_norm = 0;
-  fix16_t out_max_clamp_norm = 1;
-  fix16_t knob_norm_coeff = 1;
+  // Cache for knob normalization, calculated on config load
+  fix16_t knob_norm_coeff = F16(1);
+  // knob value normalized to range (cfg_rpm_min_limit..cfg_rpm_max_limit)
+  fix16_t knob_normalized;
 
 
   fix16_t pid_speed_integral = 0;
   fix16_t pid_power_integral = 0;
   fix16_t pid_speed_out = 0;
   bool power_limit = false;
-
-  // knob value normalized to range (cfg_rpm_min_limit..cfg_rpm_max_limit)
-  fix16_t knob_normalized;
 
   // Apply min/max limits to knob output
   fix16_t normalize_knob(fix16_t knob)
@@ -116,7 +108,7 @@ private:
     return fix16_mul(
       (in_knob - cfg_dead_zone_width_norm),
       knob_norm_coeff
-    ) + out_min_clamp_norm;
+    ) + cfg_rpm_min_limit_norm;
   }
 
 
@@ -127,14 +119,14 @@ private:
     // TODO: ???? cfg_pid_i = 0 => result = infinity
     // pid_speed_integral += 1.0 / cfg_pid_i * divergence;
     fix16_t tmp = pid_speed_integral + fix16_mul(cfg_pid_i_inv, divergence);
-    pid_speed_integral = fix16_clamp(tmp, out_min_clamp_norm, out_max_clamp_norm);
+    pid_speed_integral = fix16_clamp(tmp, cfg_rpm_min_limit_norm, cfg_rpm_max_limit_norm);
 
     fix16_t proportional = fix16_mul(cfg_pid_p, divergence);
 
     return fix16_clamp(
       proportional + pid_speed_integral,
-      out_min_clamp_norm,
-      out_max_clamp_norm
+      cfg_rpm_min_limit_norm,
+      cfg_rpm_max_limit_norm
     );
   }
 
