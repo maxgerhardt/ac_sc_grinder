@@ -58,27 +58,26 @@ public:
   void adc_raw_data_load(uint16_t adc_voltage, uint16_t adc_current,
                          uint16_t adc_knob, uint16_t adc_v_refin)
   {
-    // Vrefin is internal reference voltage 1.2v
-    // Vref is ADC reference voltage, equal to ADC supply voltage (near 3.3v)
-    // adc_vrefin = 1.2 / Vref * 4096
-    fix16_t v_ref = fix16_div(F16(1.2), adc_v_refin << 2);
-
     // 4096 - maximum value of 12-bit integer
     // normalize to fix16_t[0.0..1.0]
-    knob = adc_knob << 2;
+    knob = adc_knob << 4;
+
+    // Vrefin - internal reference voltage, 1.2v
+    // Vref - ADC reference voltage, equal to ADC supply voltage (~ 3.3v)
+    // adc_vrefin = 1.2 / Vref * 4096
+    fix16_t v_ref = fix16_div(F16(1.2), adc_v_refin << 4);
 
     // maximum ADC input voltage - Vref
     // current = adc_current_norm * v_ref / cfg_shunt_resistance
-
     current = fix16_mul(
-      fix16_mul(adc_current << 2, cfg_shunt_resistance_inv),
+      fix16_mul(adc_current << 4, cfg_shunt_resistance_inv),
       v_ref
     );
 
     // resistors in voltage divider - [ 2*150 kOhm, 1.5 kOhm ]
     // (divider ratio => 201)
     // voltage = adc_voltage * v_ref * (301.5 / 1.5);
-    voltage = fix16_mul(fix16_mul(adc_voltage << 2, v_ref), F16(301.5/1.5));
+    voltage = fix16_mul(fix16_mul(adc_voltage << 4, v_ref), F16(301.5/1.5));
   }
 
 private:
