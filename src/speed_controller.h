@@ -6,6 +6,8 @@
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
 
+#define FREQ_DIVIZOR 1000
+#define PID_I_SCALE (1.0 / 40.0)
 
 class SpeedController
 {
@@ -26,6 +28,19 @@ public:
   // pid_speed output.
   void tick()
   {
+    if (tick_freq_divide_counter == FREQ_DIVIZOR) // 40 Hz
+    {
+      tick_freq_divide_counter = 0;
+    }
+
+    if (tick_freq_divide_counter > 0)
+    {
+      tick_freq_divide_counter++;
+      return;
+    }
+
+    tick_freq_divide_counter++;
+
     knob_normalized = normalize_knob(in_knob);
 
     if (!power_limit)
@@ -61,8 +76,9 @@ public:
        CFG_DEAD_ZONE_WIDTH_DEFAULT) / 100.0);
     cfg_pid_p = fix16_from_float(eeprom_float_read(CFG_PID_P_ADDR,
        CFG_PID_P_DEFAULT));
-    cfg_pid_i_inv = fix16_from_float(1.0 / eeprom_float_read(CFG_PID_I_ADDR,
-       CFG_PID_P_DEFAULT));
+    // CFG_PID_I in seconds must be multiplied by tick frequency 40 Hz
+    cfg_pid_i_inv = fix16_from_float(1.0 /
+      eeprom_float_read(CFG_PID_I_ADDR, CFG_PID_I_DEFAULT) * PID_I_SCALE);
 
     float _rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
 
@@ -99,6 +115,8 @@ private:
   fix16_t pid_power_integral = 0;
   fix16_t pid_speed_out = 0;
   bool power_limit = false;
+
+  uint32_t tick_freq_divide_counter = 0;
 
   // Apply min/max limits to knob output
   fix16_t normalize_knob(fix16_t knob)
