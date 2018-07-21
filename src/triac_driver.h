@@ -24,6 +24,12 @@ public:
   // 40 kHz
   void tick()
   {
+    // Poor man zero cross check
+    if (((prev_voltage == 0) && (voltage > 0)) ||
+        ((prev_voltage > 0) && (voltage == 0)))
+    {
+      rearm();
+    }
     // Measure ticks after positive zero gross until voltage > MIN_IGNITION_VOLTAGE.
     // That's done on each positive wave and result is reused on negative wave.
     if ((voltage >= F16(MIN_IGNITION_VOLTAGE)) &&
@@ -35,7 +41,7 @@ public:
 
     // If period_in_ticks is not yet detected, only increment phase_counter,
     // don't turn on triac anyway.
-    if (period_in_ticks == -1)
+    if (!once_period_counted)
     {
       phase_counter++;
       return;
@@ -68,10 +74,35 @@ public:
     prev_voltage = voltage;
   }
 
+private:
+  uint32_t phase_counter = 0; // increment every tick
+  bool triac_open_done = false;
+  bool triac_close_done = false;
+
+  // Holds the number of ticks per half-period (between two zero crosses)
+  // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
+  // Initial value -1 prevents triac from turning on during first period
+  uint32_t period_in_ticks = 0;
+
+  // Holds ticks threshold when triac control signal is safe to turn off, vlotage > 25v
+  // Initial value set to 0 because during the first period triac
+  // won't turn on anyway
+  uint32_t safe_ignition_threshold = 0;
+
+  fix16_t prev_voltage = 0;
+
+
+  bool once_zero_crossed = false;
+  bool once_period_counted = false;
+
   void rearm()
   {
-    // At this moment phase_counter contains number of ticks per half-period
-    period_in_ticks = phase_counter;
+    if (once_zero_crossed) once_period_counted = true;
+
+    once_zero_crossed = true;
+    // If full half-period was counted at least once, save number of
+    // ticks in half-period
+    if (once_period_counted) period_in_ticks = phase_counter;
 
     phase_counter = 0;
     triac_open_done = false;
@@ -81,23 +112,6 @@ public:
     // immediately after triac enabled
     TRIAC_OFF();
   }
-
-private:
-  uint32_t phase_counter = 0; // increment every tick
-  bool triac_open_done = false;
-  bool triac_close_done = false;
-
-  // Holds the number of ticks per half-period (between two zero crosses)
-  // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
-  // Initial value -1 prevents triac from turning on during first period
-  int32_t period_in_ticks = -1;
-
-  // Holds ticks threshold when triac control signal is safe to turn off, vlotage > 25v
-  // Initial value set to 0 because during the first period triac
-  // won't turn on anyway
-  uint32_t safe_ignition_threshold = 0;
-
-  fix16_t prev_voltage = 0;
 };
 
 

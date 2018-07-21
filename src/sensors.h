@@ -34,9 +34,9 @@ public:
     if (((prev_voltage == 0) && (voltage > 0)) ||
         ((prev_voltage > 0) && (voltage == 0)))
     {
-      if (once_zero_crossed && !once_period_counted) once_period_counted = true;
+      if (once_zero_crossed) once_period_counted = true;
 
-      if (!once_zero_crossed) once_zero_crossed = true;
+      once_zero_crossed = true;
       // If full half-period was counted at least once, save number of
       // ticks in half-period
       if (once_period_counted) period_in_ticks = phase_counter;
@@ -126,7 +126,7 @@ private:
   // Holds the number of ticks per half-period (between two zero crosses)
   // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
   // Initial value -1 prevents triac from turning on during first period
-  int32_t period_in_ticks = -1;
+  uint32_t period_in_ticks = 0;
 
 
   bool once_zero_crossed = false;
