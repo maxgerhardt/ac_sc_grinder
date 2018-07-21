@@ -30,7 +30,23 @@ public:
   // Should be called with 40kHz frequency
   void tick()
   {
-    power_tick();
+    // Poor man zero cross check
+    if (((prev_voltage == 0) && (voltage > 0)) ||
+        ((prev_voltage > 0) && (voltage == 0)))
+    {
+      if (once_zero_crossed && !once_period_counted) once_period_counted = true;
+
+      if (!once_zero_crossed) once_zero_crossed = true;
+      // If full half-period was counted at least once, save number of
+      // ticks in half-period
+      if (once_period_counted) period_in_ticks = phase_counter;
+
+      phase_counter = 0;
+    }
+    // Calculate average power only if number of ticks was counted
+    // in full half-period
+    if (once_period_counted) power_tick();
+
     speed_tick();
   }
 
@@ -106,6 +122,16 @@ private:
   fix16_t prev_voltage = 0;
   fix16_t prev_current = 0;
 
+  uint32_t phase_counter = 0; // increment every tick
+  // Holds the number of ticks per half-period (between two zero crosses)
+  // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
+  // Initial value -1 prevents triac from turning on during first period
+  int32_t period_in_ticks = -1;
+
+
+  bool once_zero_crossed = false;
+  bool once_period_counted = false;
+
   void power_tick()
   {
     // TODO: should detect & use phase shift
@@ -141,12 +167,15 @@ private:
     {
       // Now we are at negative wave and shunt current ended
       // Time to calculate average power, and normalize it to [0.0..1.0]
-      // normalized power = (p_sum / power_tick_counter) / cfg_power_max;
+      // p_sum holds summary power measured at every tick while current
+      // is not zero, which is the summary power in half-period
+      // period_in_ticks holds number of ticks in half-period
+      // normalized power = (p_sum / period_in_ticks) / cfg_power_max;
 
       // protect from zero div (that should never happen)
-      if (power_tick_counter > 0)
+      if (period_in_ticks > 0)
       {
-        power = fix16_mul(p_sum / power_tick_counter, cfg_power_max_inv);
+        power = fix16_mul(p_sum / period_in_ticks, cfg_power_max_inv);
       }
       power_tick_counter = 0;
     }
