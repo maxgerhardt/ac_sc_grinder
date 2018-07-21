@@ -1,14 +1,11 @@
-#include "stm32f1xx_hal.h"
+#include "app.h"
 
+#include "adc.h"
+#include "tim.h"
 
-#include "hw_init.h"
-#include "fix16_math/fix16_math.h"
-#include "eeprom_float.h"
-#include "config_map.h"
 #include "speed_controller.h"
 #include "sensors.h"
 #include "triac_driver.h"
-
 
 SpeedController speedController;
 Sensors sensors;
@@ -65,25 +62,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 
-int main(void)
+void app_start(void)
 {
-  HAL_Init();
-  SystemClock_Config();
-
   // Load config info from emulated EEPROM
   speedController.configure();
   sensors.configure();
 
-  MX_GPIO_Init();
-  MX_ADC1_Init();
-  MX_DMA_Init();
-  MX_TIM1_Init();
-
   HAL_ADCEx_Calibration_Start(&hadc1);
 
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBuffer, 3);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBuffer, 4);
   HAL_TIM_Base_Start_IT(&htim1);
 
+  // Override loop in main.c to reduce patching
   while (1) {
     __WFI();
   }
