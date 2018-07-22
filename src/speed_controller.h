@@ -6,8 +6,11 @@
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
 
+#ifndef APP_TICK_FREQUENCY
+#define APP_TICK_FREQUENCY 40000
+#endif
+
 #define FREQ_DIVIZOR 1000
-#define PID_I_SCALE (40000.0 / FREQ_DIVIZOR)
 
 class SpeedController
 {
@@ -75,16 +78,16 @@ public:
   void configure()
   {
     cfg_dead_zone_width_norm = fix16_from_float(eeprom_float_read(CFG_DEAD_ZONE_WIDTH_ADDR,
-       CFG_DEAD_ZONE_WIDTH_DEFAULT) / 100.0);
+       CFG_DEAD_ZONE_WIDTH_DEFAULT) / 100.0F);
 
     cfg_pid_p = fix16_from_float(eeprom_float_read(CFG_PID_P_ADDR,
        CFG_PID_P_DEFAULT));
 
     // CFG_PID_I in seconds, reverse and divide by tick frequency (40 Hz)
     cfg_pid_i_inv = fix16_from_float(
-      1.0
+      1.0F
       / eeprom_float_read(CFG_PID_I_ADDR, CFG_PID_I_DEFAULT)
-      / PID_I_SCALE
+      * FREQ_DIVIZOR / APP_TICK_FREQUENCY
     );
 
     float _rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);

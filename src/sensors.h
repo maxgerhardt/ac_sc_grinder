@@ -55,7 +55,7 @@ public:
   // Load config from emulated EEPROM
   void configure()
   {
-    cfg_power_max_inv = fix16_from_float(1.0 /
+    cfg_power_max_inv = fix16_from_float(1.0F /
       eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT));
 
     cfg_motor_resistance = fix16_from_float(
@@ -63,15 +63,15 @@ public:
     );
 
     cfg_rpm_max_inv = fix16_from_float(
-      1.0 / eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT)
+      1.0F / eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT)
     );
 
     // config shunt resistance - in mOhm (divide by 1000)
     // shunt amplifier gain - 50
-    cfg_shunt_resistance_inv = fix16_from_float(1.0 /
+    cfg_shunt_resistance_inv = fix16_from_float(1.0F /
       (eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT)
-        * 50.0
-        / 1000.0)
+        * 50
+        / 1000)
     );
   }
 
