@@ -30,19 +30,21 @@ public:
   // Should be called with 40kHz frequency
   void tick()
   {
-    // Poor man zero cross check
+    // Poor man zero cross check (both up and down)
     if (((prev_voltage == 0) && (voltage > 0)) ||
         ((prev_voltage > 0) && (voltage == 0)))
     {
       if (once_zero_crossed) once_period_counted = true;
 
       once_zero_crossed = true;
+
       // If full half-period was counted at least once, save number of
       // ticks in half-period
       if (once_period_counted) period_in_ticks = phase_counter;
 
       phase_counter = 0;
     }
+
     // Calculate average power only if number of ticks was counted
     // in full half-period
     if (once_period_counted) power_tick();
@@ -55,12 +57,15 @@ public:
   {
     cfg_power_max_inv = fix16_from_float(1.0 /
       eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT));
+
     cfg_motor_resistance = fix16_from_float(
       eeprom_float_read(CFG_MOTOR_RESISTANCE_ADDR, CFG_MOTOR_RESISTANCE_DEFAULT)
     );
+
     cfg_rpm_max_inv = fix16_from_float(
       1.0 / eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT)
     );
+
     // config shunt resistance - in mOhm (divide by 1000)
     // shunt amplifier gain - 50
     cfg_shunt_resistance_inv = fix16_from_float(1.0 /
@@ -167,11 +172,10 @@ private:
     {
       // Now we are at negative wave and shunt current ended
       // Time to calculate average power, and normalize it to [0.0..1.0]
-      // p_sum holds summary power measured at every tick while current
-      // is not zero, which is the summary power in half-period
-      // period_in_ticks holds number of ticks in half-period
-      // normalized power = (p_sum / period_in_ticks) / cfg_power_max;
-
+      //
+      // Normalized power = (p_sum / period_in_ticks) / cfg_power_max;
+      // power > 1.0 => overload
+      //
       // protect from zero div (that should never happen)
       if (period_in_ticks > 0)
       {
@@ -205,7 +209,7 @@ private:
     {
       if (current > 0)
       {
-        // r_ekv_sum += voltage/current - cfg_motor_resistance;
+        // r_ekv = voltage/current - cfg_motor_resistance;
         r_ekv_sum += fix16_div(voltage, current) - cfg_motor_resistance;
         speed_tick_counter++;
       }

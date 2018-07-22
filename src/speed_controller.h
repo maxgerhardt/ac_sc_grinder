@@ -7,39 +7,41 @@
 #include "fix16_math/fix16_math.h"
 
 #define FREQ_DIVIZOR 1000
-#define PID_I_SCALE (1.0 / 40.0)
+#define PID_I_SCALE (40000.0 / FREQ_DIVIZOR)
 
 class SpeedController
 {
 public:
   // Inputs
-  fix16_t in_knob = 0;  // Knob position
-  fix16_t in_speed = 0; // Measured speed
-  fix16_t in_power = 0; // Measured power
+  fix16_t in_knob = 0;  // Knob position [0.0..1.0]
+  fix16_t in_speed = 0; // Measured speed [0.0..1.0]
+  fix16_t in_power = 0; // Measured power, normal - [0.0..1.0], > 1.0 => overload
 
   // Output power 0..100% for triac control
   fix16_t out_power = 0;
 
-  // Expected be called with 100/120Hz frequency
-  // More frequent calls are useless, because we can not control triac faster
-
-  // Contains two PIDs. pid_speed used in normal mode, pid_power - in power limit mode.
-  // When motor power exceeds the limit, the pid_power output drops below
-  // pid_speed output.
+  // 2 PIDs inside, but only one is active:
+  //
+  // - `pid_speed` used in normal mode
+  // - `pid_power` used in power limit mode
+  //
+  // When motor power exceeds the limit, the `pid_power` output drops below
+  // `pid_speed` output.
+  //
   void tick()
   {
-    if (tick_freq_divide_counter == FREQ_DIVIZOR) // 40 Hz
-    {
-      tick_freq_divide_counter = 0;
-    }
+    // Downscale input frequency to avoid fixed poind overflow.
+    // 40000Hz => 40Hz
 
-    if (tick_freq_divide_counter > 0)
-    {
+    if (tick_freq_divide_counter == FREQ_DIVIZOR) tick_freq_divide_counter = 0;
+
+    if (tick_freq_divide_counter > 0) {
       tick_freq_divide_counter++;
       return;
     }
 
     tick_freq_divide_counter++;
+
 
     knob_normalized = normalize_knob(in_knob);
 
@@ -55,9 +57,9 @@ public:
     {
       if (power_limit)
       {
-        // Recalculate PID_speed_integral to ensure smooth switch to normal mode
-        pid_speed_integral = pid_speed_out -
-          fix16_mul((knob_normalized - in_speed), cfg_pid_p);
+        // Recalculate `pid_speed_integral` to ensure smooth output change
+        // after switch to normal mode
+        pid_speed_integral = pid_speed_out - fix16_mul((knob_normalized - in_speed), cfg_pid_p);
         power_limit = false;
       }
       out_power = pid_speed_out;
@@ -74,17 +76,23 @@ public:
   {
     cfg_dead_zone_width_norm = fix16_from_float(eeprom_float_read(CFG_DEAD_ZONE_WIDTH_ADDR,
        CFG_DEAD_ZONE_WIDTH_DEFAULT) / 100.0);
+
     cfg_pid_p = fix16_from_float(eeprom_float_read(CFG_PID_P_ADDR,
        CFG_PID_P_DEFAULT));
-    // CFG_PID_I in seconds must be multiplied by tick frequency 40 Hz
-    cfg_pid_i_inv = fix16_from_float(1.0 /
-      eeprom_float_read(CFG_PID_I_ADDR, CFG_PID_I_DEFAULT) * PID_I_SCALE);
+
+    // CFG_PID_I in seconds, reverse and divide by tick frequency (40 Hz)
+    cfg_pid_i_inv = fix16_from_float(
+      1.0
+      / eeprom_float_read(CFG_PID_I_ADDR, CFG_PID_I_DEFAULT)
+      / PID_I_SCALE
+    );
 
     float _rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
 
     cfg_rpm_max_limit_norm = fix16_from_float(
       eeprom_float_read(CFG_RPM_MAX_LIMIT_ADDR, CFG_RPM_MAX_LIMIT_DEFAULT) / _rpm_max
     );
+
     cfg_rpm_min_limit_norm = fix16_from_float(
       eeprom_float_read(CFG_RPM_MIN_LIMIT_ADDR, CFG_RPM_MIN_LIMIT_DEFAULT) / _rpm_max
     );
@@ -134,8 +142,7 @@ private:
   {
     fix16_t divergence = knob_normalized - in_speed;
 
-    // TODO: ???? cfg_pid_i = 0 => result = infinity
-    // pid_speed_integral += 1.0 / cfg_pid_i * divergence;
+    // pid_speed_integral += (1.0 / cfg_pid_i) * divergence;
     fix16_t tmp = pid_speed_integral + fix16_mul(cfg_pid_i_inv, divergence);
     pid_speed_integral = fix16_clamp(tmp, cfg_rpm_min_limit_norm, cfg_rpm_max_limit_norm);
 
@@ -153,8 +160,7 @@ private:
     // float divergence = 100.0 - in_power;
     fix16_t divergence = fix16_one - in_power;
 
-    // TODO: ???? cfg_pid_i = 0 => result = infinity
-    // pid_power_integral += 1.0 / cfg_pid_i * divergence;
+    // pid_power_integral += (1.0 / cfg_pid_i) * divergence;
     fix16_t tmp = pid_power_integral + fix16_mul(cfg_pid_i_inv, divergence);
     pid_power_integral = fix16_clamp_zero_one(tmp);
 

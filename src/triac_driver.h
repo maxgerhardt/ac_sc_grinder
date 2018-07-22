@@ -11,7 +11,7 @@
 #define TRIAC_ON()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET)
 
 // Minimal voltage for guaranteed triac opening.
-#define MIN_IGNITION_VOLTAGE 25
+#define MIN_IGNITION_VOLTAGE (F16(25))
 
 class TriacDriver
 {
@@ -30,13 +30,12 @@ public:
     {
       rearm();
     }
+
     // Measure ticks after positive zero gross until voltage > MIN_IGNITION_VOLTAGE.
     // That's done on each positive wave and result is reused on negative wave.
-    if ((voltage >= F16(MIN_IGNITION_VOLTAGE)) &&
-        (prev_voltage < F16(MIN_IGNITION_VOLTAGE)))
+    if ((voltage >= MIN_IGNITION_VOLTAGE) && (prev_voltage < MIN_IGNITION_VOLTAGE))
     {
-      // TODO: should updte only after count done
-      safe_ignition_threshold = phase_counter;
+      if (once_zero_crossed) safe_ignition_threshold = phase_counter;
     }
 
     // If period_in_ticks is not yet detected, only increment phase_counter,
@@ -91,15 +90,17 @@ private:
 
   fix16_t prev_voltage = 0;
 
-
   bool once_zero_crossed = false;
   bool once_period_counted = false;
 
+
+  // Happens on every zero cross
   void rearm()
   {
     if (once_zero_crossed) once_period_counted = true;
 
     once_zero_crossed = true;
+
     // If full half-period was counted at least once, save number of
     // ticks in half-period
     if (once_period_counted) period_in_ticks = phase_counter;

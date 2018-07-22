@@ -4,7 +4,7 @@
 
 #include "fix16_math.h"
 
-// TODO: why PROGRAM/DATA does not depend on array size?
+
 #include "fix16_sinusize_table.h"
 
 // Convert linear requested "energy" to Sine-wave shift (used to
@@ -12,7 +12,8 @@
 // - Input: [0.0..1.0), desired energy (equivalent to 0..100%)
 // - Output: [0.0..1.0)
 //
-// NOTE: Don-t fogret to reverse range to get resl triac opening phasephase
+// NOTE: Don-t fogret to reverse range to get real triac opening phasephase
+//
 fix16_t fix16_sinusize(fix16_t x)
 {
   fix16_t tmp = fix16_clamp_zero_one(x);

@@ -36,10 +36,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   sensors.tick();
 
-  fix16_t voltage = sensors.voltage;
-
-  triacDriver.voltage = voltage;
-  triacDriver.tick();
+  triacDriver.voltage = sensors.voltage;
 
   speedController.in_knob = sensors.knob;
   speedController.in_speed = sensors.speed;
@@ -48,6 +45,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   speedController.tick();
 
   triacDriver.setpoint = speedController.out_power;
+
+  triacDriver.tick();
 }
 
 
