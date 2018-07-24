@@ -4,7 +4,6 @@
 
 #include "stm32f1xx_hal.h"
 #include "fix16_math/fix16_math.h"
-#include "fix16_math/fix16_sinusize.h"
 
 
 #define TRIAC_OFF() HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET)
