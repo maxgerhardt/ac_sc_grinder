@@ -1,13 +1,24 @@
 #ifndef __SENSORS__
 #define __SENSORS__
 
+#include <string.h>
 
 #include "eeprom_float.h"
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
 
+static inline uint32_t sum_u16(uint16_t *uint16_array, uint32_t count)
+{
+  uint32_t sum = 0;
+  while (count--) sum += *uint16_array++;
+  return sum;
+}
+
 // At 40000 Hz, 1/2 of 50Hz sine wave should take ~400 ticks to record
 #define VOLTAGE_BUFFER_SIZE 800
+
+// Size of ADC circular & temporary buffers.
+#define ADC_BUFFER_SIZE 32
 
 /*
   Sensors data source:
@@ -30,6 +41,9 @@ public:
   // Should be called with 40kHz frequency
   void tick()
   {
+    // Do preliminary filtering of raw data + normalize result
+    fetch_adc_data();
+
     // Poor man zero cross check (both up and down)
     if (((prev_voltage == 0) && (voltage > 0)) ||
         ((prev_voltage > 0) && (voltage == 0)))
@@ -81,6 +95,71 @@ public:
   void adc_raw_data_load(uint16_t adc_voltage, uint16_t adc_current,
                          uint16_t adc_knob, uint16_t adc_v_refin)
   {
+    adc_voltage_circular_buf[adc_circular_buffer_head] = adc_voltage;
+    adc_current_circular_buf[adc_circular_buffer_head] = adc_current;
+    adc_knob_circular_buf[adc_circular_buffer_head] = adc_knob;
+    adc_v_refin_circular_buf[adc_circular_buffer_head] = adc_v_refin;
+
+    adc_circular_buffer_head++;
+
+    if (adc_circular_buffer_head >= ADC_BUFFER_SIZE) adc_circular_buffer_head = 0;
+  }
+
+private:
+  // Circular buffers for adc data, filled by "interrupt" (DMA)
+  // Should be at least +1 of required data size, to guarantee atomic use
+  uint16_t adc_voltage_circular_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_current_circular_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_knob_circular_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_v_refin_circular_buf[ADC_BUFFER_SIZE];
+  // Common circular buffer HEAD offset (the same for all buffers)
+  uint8_t adc_circular_buffer_head = 0;
+
+  // Temporary buffers to quick-copy data from circular one, before use.
+  //
+  // 1. Converts circular data to linear one
+  // 2. Helps to avoid races, if heavy processing interrupted by ADC push new data
+  uint16_t adc_voltage_tmp_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_current_tmp_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_knob_tmp_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_v_refin_tmp_buf[ADC_BUFFER_SIZE];
+
+
+  void circ_to_linear(uint16_t *src, uint16_t *dst, uint8_t head, uint8_t count)
+  {
+    if (head == 0) head = ADC_BUFFER_SIZE;
+
+    if (head >= count)
+    {
+      // Can copy as single slice
+      memcpy(dst, src + (head - count), count * sizeof(uint16_t));
+    }
+    else {
+      // Should copy as 2 slices
+      uint8_t slice1_start = head + ADC_BUFFER_SIZE - count;
+      uint8_t slice1_len = count - head;
+      memcpy(dst, src + slice1_start, slice1_len * sizeof(uint16_t));
+      memcpy(dst + slice1_len, src, head * sizeof(uint16_t));
+    }
+  }
+
+  void fetch_adc_data()
+  {
+    // "Lock" raw data to temporary buffers
+    uint8_t frozen_head = adc_circular_buffer_head;
+    circ_to_linear(adc_voltage_circular_buf, adc_voltage_tmp_buf, frozen_head, 4);
+    circ_to_linear(adc_current_circular_buf, adc_current_tmp_buf, frozen_head, 4);
+    circ_to_linear(adc_knob_circular_buf, adc_knob_tmp_buf, frozen_head, 8);
+    circ_to_linear(adc_v_refin_circular_buf, adc_v_refin_tmp_buf, frozen_head, 4);
+
+    // Apply filters
+    uint16_t adc_voltage = sum_u16(adc_voltage_tmp_buf, 4) >> 2;
+    uint16_t adc_current = sum_u16(adc_current_tmp_buf, 4) >> 2;
+    uint16_t adc_knob = sum_u16(adc_knob_tmp_buf, 8) >> 3;
+    uint16_t adc_v_refin =  sum_u16(adc_v_refin_tmp_buf, 4) >> 2;
+
+    // Now process the rest...
+
     // 4096 - maximum value of 12-bit integer
     // normalize to fix16_t[0.0..1.0]
     knob = adc_knob << 4;
@@ -101,9 +180,9 @@ public:
     // (divider ratio => 201)
     // voltage = adc_voltage * v_ref * (301.5 / 1.5);
     voltage = fix16_mul(fix16_mul(adc_voltage << 4, v_ref), F16(301.5/1.5));
+
   }
 
-private:
   // Conig info
   fix16_t cfg_shunt_resistance_inv;
   fix16_t cfg_power_max_inv;
