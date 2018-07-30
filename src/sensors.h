@@ -50,6 +50,8 @@ public:
     if (once_period_counted) power_tick();
 
     speed_tick();
+
+    prev_voltage = voltage;
   }
 
   // Load config from emulated EEPROM
@@ -229,8 +231,6 @@ private:
       }
       speed_tick_counter = 0;
     }
-
-    prev_voltage = voltage;
   }
 };
 
