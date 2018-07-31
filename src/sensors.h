@@ -149,20 +149,24 @@ private:
     uint8_t frozen_head = adc_circular_buffer_head;
     circ_to_linear(adc_voltage_circular_buf, adc_voltage_tmp_buf, frozen_head, 4);
     circ_to_linear(adc_current_circular_buf, adc_current_tmp_buf, frozen_head, 4);
-    circ_to_linear(adc_knob_circular_buf, adc_knob_tmp_buf, frozen_head, 8);
+    circ_to_linear(adc_knob_circular_buf, adc_knob_tmp_buf, frozen_head, 4);
     circ_to_linear(adc_v_refin_circular_buf, adc_v_refin_tmp_buf, frozen_head, 4);
 
     // Apply filters
     uint16_t adc_voltage = sum_u16(adc_voltage_tmp_buf, 4) >> 2;
     uint16_t adc_current = sum_u16(adc_current_tmp_buf, 4) >> 2;
-    uint16_t adc_knob = sum_u16(adc_knob_tmp_buf, 8) >> 3;
+    uint16_t adc_knob = sum_u16(adc_knob_tmp_buf, 4) >> 2;
     uint16_t adc_v_refin =  sum_u16(adc_v_refin_tmp_buf, 4) >> 2;
 
     // Now process the rest...
 
     // 4096 - maximum value of 12-bit integer
     // normalize to fix16_t[0.0..1.0]
-    knob = adc_knob << 4;
+    fix16_t knob_new = adc_knob << 4;
+
+    // Use additional mean smoother for knob
+    knob = (knob * 15 + knob_new) >> 4;
+
 
     // Vrefin - internal reference voltage, 1.2v
     // Vref - ADC reference voltage, equal to ADC supply voltage (~ 3.3v)
