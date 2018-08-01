@@ -164,7 +164,8 @@ private:
       s_sigma += (mean - val) * (mean - val);
     }
 
-    int sigma_square_4 = s_sigma * 4 / count;
+    int sigma_square = s_sigma / (count - 1) / count;
+    int sigma_win_square = sigma_square * 4;
 
     // Drop big deviations and count mean for the rest
     i = count;
@@ -179,7 +180,59 @@ private:
       idx &= ADC_BUFFER_MASK;
       int val = src[idx];
 
-      if ((mean - val) * (mean - val) < sigma_square_4)
+      if ((mean - val) * (mean - val) < sigma_win_square)
+      {
+        s_mean_filtered += val;
+        s_mean_filtered_cnt++;
+      }
+    }
+
+    // Protection from zero div. Should never happen
+    if (!s_mean_filtered_cnt) return mean;
+
+    return (s_mean_filtered + (s_mean_filtered_cnt >> 1)) / s_mean_filtered_cnt;
+  }
+
+  uint32_t truncated_mean2(uint16_t *src, int head, int count)
+  {
+    int i = 0;
+    int idx = 0;
+
+    // Count mean & sigma in one pass
+    // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    i = count;
+    idx = head;
+    uint32_t s = 0;
+    uint32_t s2 = 0;
+    while (i)
+    {
+      i--;
+      idx--;
+      idx &= ADC_BUFFER_MASK;
+      int val = src[idx];
+      s += val;
+      s2 += val * val;
+    }
+
+    int mean = (s + (count >> 1)) / count;
+
+    int sigma_square = (s2 - (s * s / count)) / (count - 1);
+    int sigma_win_square = sigma_square * 4;
+
+    // Drop big deviations and count mean for the rest
+    i = count;
+    idx = head;
+    int s_mean_filtered = 0;
+    int s_mean_filtered_cnt = 0;
+
+    while (i)
+    {
+      i--;
+      idx--;
+      idx &= ADC_BUFFER_MASK;
+      int val = src[idx];
+
+      if ((mean - val) * (mean - val) < sigma_win_square)
       {
         s_mean_filtered += val;
         s_mean_filtered_cnt++;
@@ -198,10 +251,10 @@ private:
     uint8_t frozen_head = adc_circular_buffer_head;
 
     // Apply filters
-    uint16_t adc_voltage = truncated_mean(adc_voltage_circular_buf, frozen_head, 4);
-    uint16_t adc_current = truncated_mean(adc_current_circular_buf, frozen_head, 4);
-    uint16_t adc_knob = truncated_mean(adc_knob_circular_buf, frozen_head, 4);
-    uint16_t adc_v_refin =  truncated_mean(adc_v_refin_circular_buf, frozen_head, 4);
+    uint16_t adc_voltage = truncated_mean2(adc_voltage_circular_buf, frozen_head, 4);
+    uint16_t adc_current = truncated_mean2(adc_current_circular_buf, frozen_head, 4);
+    uint16_t adc_knob = truncated_mean2(adc_knob_circular_buf, frozen_head, 4);
+    uint16_t adc_v_refin =  truncated_mean2(adc_v_refin_circular_buf, frozen_head, 4);
 
     // Now process the rest...
 
