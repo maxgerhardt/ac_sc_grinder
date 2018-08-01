@@ -7,18 +7,13 @@
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
 
-static inline uint32_t sum_u16(uint16_t *uint16_array, uint32_t count)
-{
-  uint32_t sum = 0;
-  while (count--) sum += *uint16_array++;
-  return sum;
-}
-
 // At 40000 Hz, 1/2 of 50Hz sine wave should take ~400 ticks to record
 #define VOLTAGE_BUFFER_SIZE 800
 
 // Size of ADC circular & temporary buffers.
 #define ADC_BUFFER_SIZE 32
+#define ADC_BUFFER_MASK 0x1F
+
 
 /*
   Sensors data source:
@@ -95,14 +90,17 @@ public:
   void adc_raw_data_load(uint16_t adc_voltage, uint16_t adc_current,
                          uint16_t adc_knob, uint16_t adc_v_refin)
   {
-    adc_voltage_circular_buf[adc_circular_buffer_head] = adc_voltage;
-    adc_current_circular_buf[adc_circular_buffer_head] = adc_current;
-    adc_knob_circular_buf[adc_circular_buffer_head] = adc_knob;
-    adc_v_refin_circular_buf[adc_circular_buffer_head] = adc_v_refin;
+    int head = adc_circular_buffer_head;
 
-    adc_circular_buffer_head++;
+    adc_voltage_circular_buf[head] = adc_voltage;
+    adc_current_circular_buf[head] = adc_current;
+    adc_knob_circular_buf[head] = adc_knob;
+    adc_v_refin_circular_buf[head] = adc_v_refin;
 
-    if (adc_circular_buffer_head >= ADC_BUFFER_SIZE) adc_circular_buffer_head = 0;
+    head++;
+    head &= ADC_BUFFER_MASK;
+
+    adc_circular_buffer_head = head;
   }
 
 private:
@@ -115,48 +113,95 @@ private:
   // Common circular buffer HEAD offset (the same for all buffers)
   uint8_t adc_circular_buffer_head = 0;
 
-  // Temporary buffers to quick-copy data from circular one, before use.
+
+  // 1. Calculate σ (discrete random variable)
+  // 2. Drop everything with deviation > 2σ and count mean for the rest.
   //
-  // 1. Converts circular data to linear one
-  // 2. Helps to avoid races, if heavy processing interrupted by ADC push new data
-  uint16_t adc_voltage_tmp_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_current_tmp_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_knob_tmp_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_v_refin_tmp_buf[ADC_BUFFER_SIZE];
-
-
-  void circ_to_linear(uint16_t *src, uint16_t *dst, uint8_t head, uint8_t count)
+  // https://upload.wikimedia.org/wikipedia/commons/8/8c/Standard_deviation_diagram.svg
+  //
+  // For efficiensy, don't use root square (work with σ^2 instead)
+  //
+  // !!! count sould NOT be > 16
+  //
+  // src - circular buffer
+  // head - index of NEXT data to write
+  // count - number of elements BACK from head to process
+  //
+  // Why this work? We use collision avoiding approach. Interrupt can happen,
+  // but we work with tail, and data is written to head. If bufer is big enougth,
+  // we have time to process tails until override.
+  //
+  uint32_t truncated_mean(uint16_t *src, int head, int count)
   {
-    if (head == 0) head = ADC_BUFFER_SIZE;
+    int i = 0;
+    int idx = 0;
 
-    if (head >= count)
+    // Collect mean
+    i = count;
+    idx = head;
+    int s_mean = 0;
+    while (i)
     {
-      // Can copy as single slice
-      memcpy(dst, src + (head - count), count * sizeof(uint16_t));
+      i--;
+      idx--;
+      idx &= ADC_BUFFER_MASK;
+      s_mean += src[idx];
     }
-    else {
-      // Should copy as 2 slices
-      uint8_t slice1_start = head + ADC_BUFFER_SIZE - count;
-      uint8_t slice1_len = count - head;
-      memcpy(dst, src + slice1_start, slice1_len * sizeof(uint16_t));
-      memcpy(dst + slice1_len, src, head * sizeof(uint16_t));
+
+    // add (count >> 1) for better rounding
+    int mean = (s_mean + (count >> 1)) / count;
+
+    // Collect sigma
+    i = count;
+    idx = head;
+    int s_sigma = 0;
+    while (i)
+    {
+      i--;
+      idx--;
+      idx &= ADC_BUFFER_MASK;
+      int val = src[idx];
+      s_sigma += (mean - val) * (mean - val);
     }
+
+    int sigma_square_4 = s_sigma * 4 / count;
+
+    // Drop big deviations and count mean for the rest
+    i = count;
+    idx = head;
+    int s_mean_filtered = 0;
+    int s_mean_filtered_cnt = 0;
+
+    while (i)
+    {
+      i--;
+      idx--;
+      idx &= ADC_BUFFER_MASK;
+      int val = src[idx];
+
+      if ((mean - val) * (mean - val) < sigma_square_4)
+      {
+        s_mean_filtered += val;
+        s_mean_filtered_cnt++;
+      }
+    }
+
+    // Protection from zero div. Should never happen
+    if (!s_mean_filtered_cnt) return mean;
+
+    return (s_mean_filtered + (s_mean_filtered_cnt >> 1)) / s_mean_filtered_cnt;
   }
 
   void fetch_adc_data()
   {
-    // "Lock" raw data to temporary buffers
+    // "Lock" ring buffer head
     uint8_t frozen_head = adc_circular_buffer_head;
-    circ_to_linear(adc_voltage_circular_buf, adc_voltage_tmp_buf, frozen_head, 4);
-    circ_to_linear(adc_current_circular_buf, adc_current_tmp_buf, frozen_head, 4);
-    circ_to_linear(adc_knob_circular_buf, adc_knob_tmp_buf, frozen_head, 4);
-    circ_to_linear(adc_v_refin_circular_buf, adc_v_refin_tmp_buf, frozen_head, 4);
 
     // Apply filters
-    uint16_t adc_voltage = sum_u16(adc_voltage_tmp_buf, 4) >> 2;
-    uint16_t adc_current = sum_u16(adc_current_tmp_buf, 4) >> 2;
-    uint16_t adc_knob = sum_u16(adc_knob_tmp_buf, 4) >> 2;
-    uint16_t adc_v_refin =  sum_u16(adc_v_refin_tmp_buf, 4) >> 2;
+    uint16_t adc_voltage = truncated_mean(adc_voltage_circular_buf, frozen_head, 4);
+    uint16_t adc_current = truncated_mean(adc_current_circular_buf, frozen_head, 4);
+    uint16_t adc_knob = truncated_mean(adc_knob_circular_buf, frozen_head, 4);
+    uint16_t adc_v_refin =  truncated_mean(adc_v_refin_circular_buf, frozen_head, 4);
 
     // Now process the rest...
 
