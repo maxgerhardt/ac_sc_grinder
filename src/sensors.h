@@ -126,12 +126,13 @@ private:
   // src - circular buffer
   // head - index of NEXT data to write
   // count - number of elements BACK from head to process
+  // window - sigma multiplier (usually [1..2])
   //
   // Why this work? We use collision avoiding approach. Interrupt can happen,
   // but we work with tail, and data is written to head. If bufer is big enougth,
   // we have time to process tails until override.
   //
-  uint32_t truncated_mean(uint16_t *src, int head, int count)
+  uint32_t truncated_mean(uint16_t *src, int head, int count, fix16_t window)
   {
     int i = 0;
     int idx = 0;
@@ -165,7 +166,9 @@ private:
     }
 
     int sigma_square = s_sigma / (count - 1) / count;
-    int sigma_win_square = sigma_square * 4;
+    // quick & dirty multiply to win^2, when win is in fix16 format.
+    // we suppose win is 1..2, and sigma^2 - 24 bits max
+    int sigma_win_square = ((((window >> 8) * (window >> 8)) >> 12) * sigma_square) >> 4;
 
     // Drop big deviations and count mean for the rest
     i = count;
@@ -193,7 +196,7 @@ private:
     return (s_mean_filtered + (s_mean_filtered_cnt >> 1)) / s_mean_filtered_cnt;
   }
 
-  uint32_t truncated_mean2(uint16_t *src, int head, int count)
+  uint32_t truncated_mean2(uint16_t *src, int head, int count, fix16_t window)
   {
     int i = 0;
     int idx = 0;
@@ -217,7 +220,9 @@ private:
     int mean = (s + (count >> 1)) / count;
 
     int sigma_square = (s2 - (s * s / count)) / (count - 1);
-    int sigma_win_square = sigma_square * 4;
+    // quick & dirty multiply to win^2, when win is in fix16 format.
+    // we suppose win is 1..2, and sigma^2 - 24 bits max
+    int sigma_win_square = ((((window >> 8) * (window >> 8)) >> 12) * sigma_square) >> 4;
 
     // Drop big deviations and count mean for the rest
     i = count;
@@ -251,10 +256,10 @@ private:
     uint8_t frozen_head = adc_circular_buffer_head;
 
     // Apply filters
-    uint16_t adc_voltage = truncated_mean2(adc_voltage_circular_buf, frozen_head, 4);
-    uint16_t adc_current = truncated_mean2(adc_current_circular_buf, frozen_head, 4);
-    uint16_t adc_knob = truncated_mean2(adc_knob_circular_buf, frozen_head, 4);
-    uint16_t adc_v_refin =  truncated_mean2(adc_v_refin_circular_buf, frozen_head, 4);
+    uint16_t adc_voltage = truncated_mean2(adc_voltage_circular_buf, frozen_head, 4, F16(1.1));
+    uint16_t adc_current = truncated_mean2(adc_current_circular_buf, frozen_head, 4, F16(1.1));
+    uint16_t adc_knob = truncated_mean2(adc_knob_circular_buf, frozen_head, 4, F16(1.1));
+    uint16_t adc_v_refin =  truncated_mean2(adc_v_refin_circular_buf, frozen_head, 4, F16(1.1));
 
     // Now process the rest...
 
