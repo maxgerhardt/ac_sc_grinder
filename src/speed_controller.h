@@ -7,7 +7,7 @@
 #include "fix16_math/fix16_math.h"
 
 #ifndef APP_TICK_FREQUENCY
-#define APP_TICK_FREQUENCY 40000
+#define APP_TICK_FREQUENCY 20000
 #endif
 
 #define FREQ_DIVIZOR 1000
