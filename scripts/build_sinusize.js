@@ -16,7 +16,7 @@ function to_fix16(x) {
 
 let res = [];
 
-for (let i=0; i < TABLE_SIZE; i++) {
+for (let i = 0; i < TABLE_SIZE; i++) {
   res[i] = to_fix16((Math.asin(-1.0 + i * 2 / (TABLE_SIZE - 1)) * 2 / Math.PI + 1) / 2);
 
   // hacky clamp
