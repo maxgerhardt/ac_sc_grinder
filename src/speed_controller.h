@@ -10,7 +10,12 @@
 #define APP_TICK_FREQUENCY 20000
 #endif
 
-#define FREQ_DIVIZOR 1000
+// PID iteration frequency, Hz. To fit math in fix16 without overflow.
+#define APP_PID_FREQUENCY 40
+
+
+constexpr int freq_divisor = APP_TICK_FREQUENCY / APP_PID_FREQUENCY;
+
 
 class SpeedController
 {
@@ -36,7 +41,7 @@ public:
     // Downscale input frequency to avoid fixed poind overflow.
     // 40000Hz => 40Hz
 
-    if (tick_freq_divide_counter == FREQ_DIVIZOR) tick_freq_divide_counter = 0;
+    if (tick_freq_divide_counter >= freq_divisor) tick_freq_divide_counter = 0;
 
     if (tick_freq_divide_counter > 0) {
       tick_freq_divide_counter++;
@@ -87,7 +92,7 @@ public:
     cfg_pid_i_inv = fix16_from_float(
       1.0F
       / eeprom_float_read(CFG_PID_I_ADDR, CFG_PID_I_DEFAULT)
-      * FREQ_DIVIZOR / APP_TICK_FREQUENCY
+      / APP_PID_FREQUENCY
     );
 
     float _rpm_max = eeprom_float_read(CFG_RPM_MAX_ADDR, CFG_RPM_MAX_DEFAULT);
