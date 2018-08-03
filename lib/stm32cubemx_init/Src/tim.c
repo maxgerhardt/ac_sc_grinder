@@ -110,7 +110,7 @@ void HAL_TIM_OC_MspInit(TIM_HandleTypeDef* tim_ocHandle)
     __HAL_RCC_TIM1_CLK_ENABLE();
 
     /* TIM1 interrupt Init */
-    HAL_NVIC_SetPriority(TIM1_UP_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(TIM1_UP_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(TIM1_UP_IRQn);
   /* USER CODE BEGIN TIM1_MspInit 1 */
 
