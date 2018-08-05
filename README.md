@@ -28,6 +28,8 @@ other grinder models are left to volunteers.
     - [Plastik 70 CRC](https://www.google.com/search?q=Plastik+70+CRC) or any
       other acrylic protective coating. We strongly recommend to protect PCB
       from aspirated dust
+    - [male](https://www.aliexpress.com/item/100pcs-2-8-Inserts-Plug-Spring-Terminal-PCB-Solder-lug-thickness-0-8-one-legs-PCB/32702011692.html) &
+      [female](https://www.aliexpress.com/item/100pcs-lot-2-8-insulated-terminal-with-0-5-0-8-male-insert-brass-color-connectors/32593170276.html) 2.8mm power terminals (optional - you can solder wires directly)
 4. Extract some components from native grinder board:
     - Speed potentiometer with wheel.
     - Terminal pins for motor contacts.
