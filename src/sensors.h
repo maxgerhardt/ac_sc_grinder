@@ -60,6 +60,7 @@ public:
 
     speed_tick();
 
+    phase_counter++;
     prev_voltage = voltage;
   }
 
@@ -351,6 +352,7 @@ private:
         // speed = 10.0 * r_ekv / cfg_rpm_max;
         speed = fix16_mul(10 * r_ekv, cfg_rpm_max_inv);
       }
+      r_ekv_sum = 0;
       speed_tick_counter = 0;
     }
   }
