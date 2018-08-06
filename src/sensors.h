@@ -6,14 +6,13 @@
 #include "eeprom_float.h"
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
+#include "app.h"
 
 // At 40000 Hz, 1/2 of 50Hz sine wave should take ~400 ticks to record
 #define VOLTAGE_BUFFER_SIZE 800
 
-// Size of ADC circular & temporary buffers.
-#define ADC_BUFFER_SIZE 32
-#define ADC_BUFFER_MASK 0x1F
-
+// Size of ADC temporary buffers.
+#define ADC_BUFFER_SIZE ADC_FETCH_PER_TICK
 
 /*
   Sensors data source:
@@ -87,33 +86,26 @@ public:
     );
   }
 
-  // Store raw ADC data to normalized values
-  void adc_raw_data_load(uint16_t adc_voltage, uint16_t adc_current,
-                         uint16_t adc_knob, uint16_t adc_v_refin)
+  // Store raw ADC data to temporary buffers
+  void adc_raw_data_load(uint16_t ADCBuffer[], uint32_t adc_data_offset)
   {
-    int head = adc_circular_buffer_head;
+    for (int sample = 0; sample < 8; sample++)
+    {
+      int offset = sample * ADC_CHANNELS_COUNT + adc_data_offset;
 
-    adc_voltage_circular_buf[head] = adc_voltage;
-    adc_current_circular_buf[head] = adc_current;
-    adc_knob_circular_buf[head] = adc_knob;
-    adc_v_refin_circular_buf[head] = adc_v_refin;
-
-    head++;
-    head &= ADC_BUFFER_MASK;
-
-    adc_circular_buffer_head = head;
+      adc_voltage_temp_buf[sample] = ADCBuffer[0 + offset];
+      adc_current_temp_buf[sample] = ADCBuffer[1 + offset];
+      adc_knob_temp_buf[sample] = ADCBuffer[2 + offset];
+      adc_v_refin_temp_buf[sample] = ADCBuffer[3 + offset];
+    }
   }
 
 private:
-  // Circular buffers for adc data, filled by "interrupt" (DMA)
-  // Should be at least +1 of required data size, to guarantee atomic use
-  uint16_t adc_voltage_circular_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_current_circular_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_knob_circular_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_v_refin_circular_buf[ADC_BUFFER_SIZE];
-  // Common circular buffer HEAD offset (the same for all buffers)
-  uint8_t adc_circular_buffer_head = 0;
-
+  // Temporary buffers for adc data, filled by "interrupt" (DMA)
+  uint16_t adc_voltage_temp_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_current_temp_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_knob_temp_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_v_refin_temp_buf[ADC_BUFFER_SIZE];
 
   // 1. Calculate σ (discrete random variable)
   // 2. Drop everything with deviation > 2σ and count mean for the rest.
@@ -133,7 +125,7 @@ private:
   // but we work with tail, and data is written to head. If bufer is big enougth,
   // we have time to process tails until override.
   //
-  uint32_t truncated_mean(uint16_t *src, int head, int count, fix16_t window)
+  uint32_t truncated_mean(uint16_t *src, int count, fix16_t window)
   {
     int i = 0;
     int idx = 0;
@@ -141,14 +133,13 @@ private:
     // Count mean & sigma in one pass
     // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
     i = count;
-    idx = head;
+    idx = count;
     uint32_t s = 0;
     uint32_t s2 = 0;
     while (i)
     {
       i--;
       idx--;
-      idx &= ADC_BUFFER_MASK;
       int val = src[idx];
       s += val;
       s2 += val * val;
@@ -163,7 +154,7 @@ private:
 
     // Drop big deviations and count mean for the rest
     i = count;
-    idx = head;
+    idx = count;
     int s_mean_filtered = 0;
     int s_mean_filtered_cnt = 0;
 
@@ -171,7 +162,6 @@ private:
     {
       i--;
       idx--;
-      idx &= ADC_BUFFER_MASK;
       int val = src[idx];
 
       if ((mean - val) * (mean - val) < sigma_win_square)
@@ -189,14 +179,11 @@ private:
 
   void fetch_adc_data()
   {
-    // "Lock" ring buffer head
-    uint8_t frozen_head = adc_circular_buffer_head;
-
     // Apply filters
-    uint16_t adc_voltage = truncated_mean(adc_voltage_circular_buf, frozen_head, 8, F16(1.1));
-    uint16_t adc_current = truncated_mean(adc_current_circular_buf, frozen_head, 8, F16(1.1));
-    uint16_t adc_knob = truncated_mean(adc_knob_circular_buf, frozen_head, 8, F16(1.1));
-    uint16_t adc_v_refin =  truncated_mean(adc_v_refin_circular_buf, frozen_head, 8, F16(1.1));
+    uint16_t adc_voltage = truncated_mean(adc_voltage_temp_buf, 8, F16(1.1));
+    uint16_t adc_current = truncated_mean(adc_current_temp_buf, 8, F16(1.1));
+    uint16_t adc_knob = truncated_mean(adc_knob_temp_buf, 8, F16(1.1));
+    uint16_t adc_v_refin =  truncated_mean(adc_v_refin_temp_buf, 8, F16(1.1));
 
     // Now process the rest...
 
