@@ -58,11 +58,11 @@ public:
 
       // Calculate ticks treshold when triac should be enabled:
       // "mirror" and "enlarge" normalized setpoint
-      uint32_t ticks_treshold = fix16_to_int(
-        (fix16_one - normalized_setpoint) * period_in_ticks
-      );
-
-      if (phase_counter >= ticks_treshold) {
+      uint32_t ticks_threshold = fix16_to_int(
+          (fix16_one - normalized_setpoint) * correct_period_in_ticks
+        ) + threshold_correction;
+      
+      if (phase_counter >= ticks_threshold) {
         triac_open_done = true;
         TRIAC_ON();
       }
@@ -77,10 +77,20 @@ private:
   bool triac_open_done = false;
   bool triac_close_done = false;
 
-  // Holds the number of ticks per half-period (between two zero crosses)
-  // Will be near 400 for 50 Hz supply voltage or near 333.3333 for 60 Hz
-  // Initial value -1 prevents triac from turning on during first period
-  uint32_t period_in_ticks = 0;
+  // Holds measured number of ticks per positive half-period
+  uint32_t positive_period_in_ticks = 0;
+  // Holds measured number of ticks per negative half-period
+  uint32_t negative_period_in_ticks = 0;
+  // Due to filtration before zero-crossing detection 
+  // measured positive half-period of voltage is bigger than
+  // measured negative half-period. Real length of half-period
+  // is (positive + negative / 2)
+  // Holds real number of ticks per half-period
+  uint32_t correct_period_in_ticks = 0;
+
+  // Holds number of ticks by which zero-cross points are
+  // shifted in time due to filtration before zero-crossing detection 
+  int32_t threshold_correction = 0;
 
   // Holds ticks threshold when triac control signal is safe to turn off, vlotage > 25v
   // Initial value set to 0 because during the first period triac
@@ -102,7 +112,26 @@ private:
 
     // If full half-period was counted at least once, save number of
     // ticks in half-period
-    if (once_period_counted) period_in_ticks = phase_counter;
+    if (once_period_counted) 
+    {
+      if (voltage == 0) 
+      {
+        positive_period_in_ticks = phase_counter;
+        // Zero-cross points are shifted in time due to filtration
+        // For negative half-period correction must be negative
+        threshold_correction = - threshold_correction;
+      }
+
+      if (voltage > 0)
+      {
+        negative_period_in_ticks = phase_counter;
+        // Real length of half-period
+        correct_period_in_ticks = (positive_period_in_ticks + negative_period_in_ticks) / 2;
+        // Zero-cross points are shifted in time due to filtration, calculate this shift
+        // For positive half-period correction is positive
+        threshold_correction = (positive_period_in_ticks - correct_period_in_ticks) / 2;
+      }
+    }
 
     phase_counter = 0;
     triac_open_done = false;
