@@ -8,11 +8,11 @@
 #include "fix16_math/fix16_math.h"
 #include "app.h"
 
-// At 40000 Hz, 1/2 of 50Hz sine wave should take ~400 ticks to record
-#define VOLTAGE_BUFFER_SIZE 800
-
-// Size of ADC temporary buffers.
-#define ADC_BUFFER_SIZE ADC_FETCH_PER_TICK
+// Since we can measure only positive wave, we need record data to measure
+// power. When voltage become negative, but current still flow - replay data
+// from this buffer.
+// Size is ~ twice more than required in worst case.
+constexpr int voltage_buffer_size = APP_TICK_FREQUENCY / 50;
 
 /*
   Sensors data source:
@@ -86,26 +86,24 @@ public:
     );
   }
 
-  // Store raw ADC data to temporary buffers
+  // Split raw ADC data by separate buffers
   void adc_raw_data_load(uint16_t ADCBuffer[], uint32_t adc_data_offset)
   {
-    for (int sample = 0; sample < 8; sample++)
+    for (int sample = 0; sample < ADC_FETCH_PER_TICK; sample++)
     {
-      int offset = sample * ADC_CHANNELS_COUNT + adc_data_offset;
-
-      adc_voltage_temp_buf[sample] = ADCBuffer[0 + offset];
-      adc_current_temp_buf[sample] = ADCBuffer[1 + offset];
-      adc_knob_temp_buf[sample] = ADCBuffer[2 + offset];
-      adc_v_refin_temp_buf[sample] = ADCBuffer[3 + offset];
+      adc_voltage_temp_buf[sample] = ADCBuffer[adc_data_offset++];
+      adc_current_temp_buf[sample] = ADCBuffer[adc_data_offset++];
+      adc_knob_temp_buf[sample] = ADCBuffer[adc_data_offset++];
+      adc_v_refin_temp_buf[sample] = ADCBuffer[adc_data_offset++];
     }
   }
 
 private:
   // Temporary buffers for adc data, filled by "interrupt" (DMA)
-  uint16_t adc_voltage_temp_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_current_temp_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_knob_temp_buf[ADC_BUFFER_SIZE];
-  uint16_t adc_v_refin_temp_buf[ADC_BUFFER_SIZE];
+  uint16_t adc_voltage_temp_buf[ADC_FETCH_PER_TICK];
+  uint16_t adc_current_temp_buf[ADC_FETCH_PER_TICK];
+  uint16_t adc_knob_temp_buf[ADC_FETCH_PER_TICK];
+  uint16_t adc_v_refin_temp_buf[ADC_FETCH_PER_TICK];
 
   // 1. Calculate σ (discrete random variable)
   // 2. Drop everything with deviation > 2σ and count mean for the rest.
@@ -127,20 +125,16 @@ private:
   //
   uint32_t truncated_mean(uint16_t *src, int count, fix16_t window)
   {
-    int i = 0;
     int idx = 0;
 
     // Count mean & sigma in one pass
     // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-    i = count;
     idx = count;
     uint32_t s = 0;
     uint32_t s2 = 0;
-    while (i)
+    while (idx)
     {
-      i--;
-      idx--;
-      int val = src[idx];
+      int val = src[--idx];
       s += val;
       s2 += val * val;
     }
@@ -153,16 +147,13 @@ private:
     int sigma_win_square = ((((window >> 8) * (window >> 8)) >> 12) * sigma_square) >> 4;
 
     // Drop big deviations and count mean for the rest
-    i = count;
     idx = count;
     int s_mean_filtered = 0;
     int s_mean_filtered_cnt = 0;
 
-    while (i)
+    while (idx)
     {
-      i--;
-      idx--;
-      int val = src[idx];
+      int val = src[--idx];
 
       if ((mean - val) * (mean - val) < sigma_win_square)
       {
@@ -180,10 +171,10 @@ private:
   void fetch_adc_data()
   {
     // Apply filters
-    uint16_t adc_voltage = truncated_mean(adc_voltage_temp_buf, 8, F16(1.1));
-    uint16_t adc_current = truncated_mean(adc_current_temp_buf, 8, F16(1.1));
-    uint16_t adc_knob = truncated_mean(adc_knob_temp_buf, 8, F16(1.1));
-    uint16_t adc_v_refin =  truncated_mean(adc_v_refin_temp_buf, 8, F16(1.1));
+    uint16_t adc_voltage = truncated_mean(adc_voltage_temp_buf, ADC_FETCH_PER_TICK, F16(1.1));
+    uint16_t adc_current = truncated_mean(adc_current_temp_buf, ADC_FETCH_PER_TICK, F16(1.1));
+    uint16_t adc_knob = truncated_mean(adc_knob_temp_buf, ADC_FETCH_PER_TICK, F16(1.1));
+    uint16_t adc_v_refin =  truncated_mean(adc_v_refin_temp_buf, ADC_FETCH_PER_TICK, F16(1.1));
 
     // Now process the rest...
 
@@ -222,7 +213,7 @@ private:
 
   // Buffer for extrapolation during the negative half-period of AC voltage
   // Record data on positive wave and replay on negative wave.
-  fix16_t voltage_buffer[VOLTAGE_BUFFER_SIZE];
+  fix16_t voltage_buffer[voltage_buffer_size];
 
   fix16_t p_sum = 0;
 
@@ -298,7 +289,7 @@ private:
 
     // We should never have bufer overrun, but let's keep protection from
     // memory corruption for safety.
-    if (power_tick_counter < VOLTAGE_BUFFER_SIZE)
+    if (power_tick_counter < voltage_buffer_size)
     {
       voltage_buffer[power_tick_counter] = voltage;
     }

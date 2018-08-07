@@ -2,15 +2,13 @@
 #define __SPEED_CONTROLLER__
 
 
+#include "app.h"
 #include "eeprom_float.h"
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
 
-#ifndef APP_TICK_FREQUENCY
-#define APP_TICK_FREQUENCY 17857
-#endif
-
 // PID iteration frequency, Hz. To fit math in fix16 without overflow.
+// Affects Ki "scale" of PID
 #define APP_PID_FREQUENCY 40
 
 
