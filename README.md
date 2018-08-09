@@ -33,6 +33,8 @@ other grinder models are left to volunteers.
 4. Extract some components from native grinder board:
     - Speed potentiometer with wheel.
     - Terminal pins for motor contacts.
+    - AC filtering capacitor (0.1uF 275v). It's not drawn on schematics, solder
+      it after board assembly to AC power pins.
 
 
 ## Building hardware
