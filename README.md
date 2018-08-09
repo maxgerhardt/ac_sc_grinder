@@ -47,6 +47,10 @@ other grinder models are left to volunteers.
 
 ## How to flash firmware
 
+**WARNING! You MUST unplug power cord prior to flash firmware.** Turning power off
+via grinder switch is not enougth. If you plug programmator into computer
+while AC plug in power socket, your USB interface may be damaged!
+
 1. Install PlatformIO IDE. Follow instructions [here](http://docs.platformio.org/en/latest/ide/pioide.html).
    We use PIO for Atom, but PIO for VSCode should be ok too.
    - Make sure you've [installed](http://docs.platformio.org/en/latest/installation.html#troubleshooting)
@@ -68,6 +72,11 @@ pio run --target upload
 
 Everything is done in `PlatformIO`. If you wish to update conig and regenerate
 headers, you may need `node.js` and run `npm run config`.
+
+Note, this PCB has no AC isolation! That's ok for normal operation, because
+board is placed inside isolated case. But if you plan to debug firmware via USB,
+you MUST use [USB isolator](https://ru.aliexpress.com/wholesale?SearchText=USB+isolator)
+module.
 
 
 ## License
