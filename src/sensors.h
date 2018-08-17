@@ -8,6 +8,12 @@
 #include "fix16_math/fix16_math.h"
 #include "app.h"
 
+// While triac is off, current may be positive
+// due to interference. This threshold value
+// must be greater than interference level.
+// 2 bits of ADC
+#define MINIMAL_CURRENT_THRESHOLD F16(0.0064453125)
+
 // Since we can measure only positive wave, we need record data to measure
 // power. When voltage become negative, but current still flow - replay data
 // from this buffer.
@@ -61,6 +67,7 @@ public:
 
     phase_counter++;
     prev_voltage = voltage;
+    prev_current = current;
   }
 
   // Load config from emulated EEPROM
@@ -84,6 +91,11 @@ public:
         * 50
         / 1000)
     );
+
+    cfg_motor_inductance = fix16_from_float(
+      eeprom_float_read(CFG_MOTOR_INDUCTANCE_ADDR, CFG_MOTOR_INDUCTANCE_DEFAULT)
+    );
+
   }
 
   // Split raw ADC data by separate buffers
@@ -210,6 +222,7 @@ private:
   fix16_t cfg_power_max_inv;
   fix16_t cfg_motor_resistance;
   fix16_t cfg_rpm_max_inv;
+  fix16_t cfg_motor_inductance;
 
   // Buffer for extrapolation during the negative half-period of AC voltage
   // Record data on positive wave and replay on negative wave.
@@ -293,8 +306,6 @@ private:
     {
       voltage_buffer[power_tick_counter] = voltage;
     }
-
-    prev_current = current;
   }
 
   // Motor speed is proportional to the equivalent resistance `r_ekv`.
@@ -310,11 +321,22 @@ private:
   {
     if (voltage > 0)
     {
-      if (current > 0)
+      // Don't measure speed when triac is off
+      if (current > MINIMAL_CURRENT_THRESHOLD)
       {
-        // r_ekv = voltage/current - cfg_motor_resistance;
-        r_ekv_sum += fix16_div(voltage, current) - cfg_motor_resistance;
-        speed_tick_counter++;
+        fix16_t didt = (current - prev_current) * APP_TICK_FREQUENCY;
+        fix16_t r_ekv = fix16_div(voltage, current) 
+          - cfg_motor_resistance - fix16_div(
+            fix16_mul(F16(cfg_motor_inductance), didt),
+            current
+          ); 
+        // Stop measuring if r_ekv_sum will overflow
+        // When current derivative < 0 the accuracy is maximal
+        if ((didt <= 0) && ((r_ekv_sum + r_ekv) < fix16_maximum))
+        {
+          r_ekv_sum += r_ekv;
+          speed_tick_counter++;
+        }
       }
     }
 
