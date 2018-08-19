@@ -5,9 +5,7 @@
 #include "stm32f1xx_hal.h"
 #include "fix16_math/fix16_math.h"
 
-
-#define TRIAC_OFF() HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET)
-#define TRIAC_ON()  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET)
+#include "sensors.h"
 
 // Minimal voltage for guaranteed triac opening.
 #define MIN_IGNITION_VOLTAGE (F16(25))
@@ -19,6 +17,9 @@ public:
   // Will be used to calculate opening phase for each half sine wave
   fix16_t setpoint = 0;
   fix16_t voltage = 0;
+
+  // Reference to sensors, for "reactive" update of triac state info
+  Sensors *ref_sensors = nullptr;
 
   // 40 kHz
   void tick()
@@ -48,7 +49,7 @@ public:
     // If triac was activated (in prev tick) and still active - deactivate it.
     if (triac_open_done && !triac_close_done) {
       triac_close_done = true;
-      TRIAC_OFF();
+      triac_off();
     }
 
     // If triac was not yet activated - check if we can do this
@@ -61,10 +62,10 @@ public:
       uint32_t ticks_threshold = fix16_to_int(
           (fix16_one - normalized_setpoint) * correct_period_in_ticks
         ) + threshold_correction;
-      
+
       if (phase_counter >= ticks_threshold) {
         triac_open_done = true;
-        TRIAC_ON();
+        triac_on();
       }
     }
 
@@ -81,7 +82,7 @@ private:
   uint32_t positive_period_in_ticks = 0;
   // Holds measured number of ticks per negative half-period
   uint32_t negative_period_in_ticks = 0;
-  // Due to filtration before zero-crossing detection 
+  // Due to filtration before zero-crossing detection
   // measured positive half-period of voltage is bigger than
   // measured negative half-period. Real length of half-period
   // is (positive + negative / 2)
@@ -89,7 +90,7 @@ private:
   uint32_t correct_period_in_ticks = 0;
 
   // Holds number of ticks by which zero-cross points are
-  // shifted in time due to filtration before zero-crossing detection 
+  // shifted in time due to filtration before zero-crossing detection
   int32_t threshold_correction = 0;
 
   // Holds ticks threshold when triac control signal is safe to turn off, vlotage > 25v
@@ -102,6 +103,16 @@ private:
   bool once_zero_crossed = false;
   bool once_period_counted = false;
 
+  // Helpers to switch triac and update related data.
+  void inline triac_on(void) {
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+    if (ref_sensors != nullptr) ref_sensors->in_triac_on = true;
+  }
+  void inline triac_off(void) {
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+    if (ref_sensors != nullptr) ref_sensors->in_triac_on = false;
+  }
+
 
   // Happens on every zero cross
   void rearm()
@@ -112,9 +123,9 @@ private:
 
     // If full half-period was counted at least once, save number of
     // ticks in half-period
-    if (once_period_counted) 
+    if (once_period_counted)
     {
-      if (voltage == 0) 
+      if (voltage == 0)
       {
         positive_period_in_ticks = phase_counter;
         // Zero-cross points are shifted in time due to filtration
@@ -139,7 +150,7 @@ private:
 
     // Make sure to disable triac signal, if reset (zero cross) happens
     // immediately after triac enabled
-    TRIAC_OFF();
+    triac_off();
   }
 };
 

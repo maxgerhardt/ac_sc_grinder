@@ -160,8 +160,10 @@ void app_start(void)
   speedController.configure();
   sensors.configure();
 
-  HAL_ADCEx_Calibration_Start(&hadc1);
+  triacDriver.ref_sensors = &sensors;
 
+  // Final hardware start: calibrate ADC & run cyclic DMA ops.
+  HAL_ADCEx_Calibration_Start(&hadc1);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADCBuffer, ADC_FETCH_PER_TICK * ADC_CHANNELS_COUNT * 2);
 
   // Override loop in main.c to reduce patching

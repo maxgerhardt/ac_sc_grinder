@@ -36,7 +36,11 @@ public:
   fix16_t speed = 0;
   fix16_t voltage = 0;
   fix16_t current = 0;
-  fix16_t knob = 0; // Speed knob physical value, 0..100%
+  fix16_t knob = 0; // Speed knob physical value, 0..1
+
+  // Input from triac driver to reflect triac state. Needed for speed measure
+  // to drop noise. Autoupdated by triac driver.
+  bool in_triac_on = false;
 
   // Should be called with 40kHz frequency
   void tick()
@@ -325,11 +329,11 @@ private:
       if (current > MINIMAL_CURRENT_THRESHOLD)
       {
         fix16_t didt = (current - prev_current) * APP_TICK_FREQUENCY;
-        fix16_t r_ekv = fix16_div(voltage, current) 
+        fix16_t r_ekv = fix16_div(voltage, current)
           - cfg_motor_resistance - fix16_div(
             fix16_mul(F16(cfg_motor_inductance), didt),
             current
-          ); 
+          );
         // Stop measuring if r_ekv_sum will overflow
         // When current derivative < 0 the accuracy is maximal
         if ((didt <= 0) && ((r_ekv_sum + r_ekv) < fix16_maximum))
