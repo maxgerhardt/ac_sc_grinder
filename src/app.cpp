@@ -22,9 +22,9 @@ Calibrator calibrator;
 uint16_t ADCBuffer[ADC_FETCH_PER_TICK * ADC_CHANNELS_COUNT * 2];
 
 // Polling flag, set to true every time when new ADC data is ready.
-bool adc_data_ready = false;
+volatile bool adc_data_ready = false;
 // Offset of actual ADC data in DMA buffer,
-uint32_t adc_data_offset = 0;
+volatile uint32_t adc_data_offset = 0;
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* AdcHandle)
 {
@@ -54,10 +54,7 @@ void app_start(void)
   // Override loop in main.c to reduce patching
   while (1) {
     // Polling for flag which indicates that ADC data is ready
-    while (!adc_data_ready) {
-      // TODO: try to use volatile instead
-      asm(""); // Prevent optimizer to drop empty loop
-    }
+    while (!adc_data_ready) {}
 
     // Reset flag
     adc_data_ready = false;
