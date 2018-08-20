@@ -15,7 +15,7 @@ const data = [
   3000
 ];
 
-win = 1.1;
+const win = 1.1;
 
 function truncated_mean_3pass() {
   let count = data.length;
