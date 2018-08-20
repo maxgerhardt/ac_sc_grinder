@@ -49,7 +49,7 @@ public:
     // If triac was activated (in prev tick) and still active - deactivate it.
     if (triac_open_done && !triac_close_done) {
       triac_close_done = true;
-      triac_off();
+      triac_ignition_off();
     }
 
     // If triac was not yet activated - check if we can do this
@@ -65,7 +65,7 @@ public:
 
       if (phase_counter >= ticks_threshold) {
         triac_open_done = true;
-        triac_on();
+        triac_ignition_on();
       }
     }
 
@@ -104,13 +104,12 @@ private:
   bool once_period_counted = false;
 
   // Helpers to switch triac and update related data.
-  void inline triac_on(void) {
+  void inline triac_ignition_on(void) {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
     if (ref_sensors != nullptr) ref_sensors->in_triac_on = true;
   }
-  void inline triac_off(void) {
+  void inline triac_ignition_off(void) {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
-    if (ref_sensors != nullptr) ref_sensors->in_triac_on = false;
   }
 
 
@@ -150,7 +149,9 @@ private:
 
     // Make sure to disable triac signal, if reset (zero cross) happens
     // immediately after triac enabled
-    triac_off();
+    triac_ignition_off();
+
+    if (ref_sensors != nullptr) ref_sensors->in_triac_on = false;
   }
 };
 
