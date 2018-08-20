@@ -100,6 +100,11 @@ public:
       eeprom_float_read(CFG_MOTOR_INDUCTANCE_ADDR, CFG_MOTOR_INDUCTANCE_DEFAULT)
     );
 
+    cfg_rekv_to_speed_factor = fix16_from_float(
+      eeprom_float_read(CFG_REKV_TO_SPEED_FACTOR_ADDR, CFG_REKV_TO_SPEED_FACTOR_DEFAULT)
+    );
+
+
   }
 
   // Split raw ADC data by separate buffers
@@ -227,6 +232,7 @@ private:
   fix16_t cfg_motor_resistance;
   fix16_t cfg_rpm_max_inv;
   fix16_t cfg_motor_inductance;
+  fix16_t cfg_rekv_to_speed_factor;
 
   // Buffer for extrapolation during the negative half-period of AC voltage
   // Record data on positive wave and replay on negative wave.
@@ -312,12 +318,8 @@ private:
     }
   }
 
-  // Motor speed is proportional to the equivalent resistance `r_ekv`.
-  // `r_ekv_sum` holds sum of calculated on each tick `r_ekv`
-  // At the end of the period, arithmetic mean of `r_ekv_sum`
-  // is calculated for noise reduction purpose.
-  fix16_t r_ekv_sum = 0;
-  // Holds number of ticks
+  fix16_t speed_sum = 0;
+  // Holds number of ticks per sum
   uint32_t speed_tick_counter = 0;
 
 
@@ -328,17 +330,16 @@ private:
       // Don't measure speed when triac is off
       if (current > MINIMAL_CURRENT_THRESHOLD)
       {
-        fix16_t didt = (current - prev_current) * APP_TICK_FREQUENCY;
+        fix16_t di_dt = (current - prev_current) * APP_TICK_FREQUENCY;
+        // r_ekv ~ 1000, accuracy ok
         fix16_t r_ekv = fix16_div(voltage, current)
-          - cfg_motor_resistance - fix16_div(
-            fix16_mul(F16(cfg_motor_inductance), didt),
-            current
-          );
-        // Stop measuring if r_ekv_sum will overflow
-        // When current derivative < 0 the accuracy is maximal
-        if ((didt <= 0) && ((r_ekv_sum + r_ekv) < fix16_maximum))
+          - cfg_motor_resistance
+          - fix16_div(fix16_mul(cfg_motor_inductance, di_dt), current);
+
+        // Drop  data when current derivative < 0 (bad accuracy)
+        if (di_dt <= 0)
         {
-          r_ekv_sum += r_ekv;
+          speed_sum += fix16_div(r_ekv, cfg_rekv_to_speed_factor);
           speed_tick_counter++;
         }
       }
@@ -346,17 +347,14 @@ private:
 
     if ((prev_voltage > 0) && (voltage == 0))
     {
-      // Now we are at negative wave, calculate [normalized] speed
+      // Now we are at negative wave, update [normalized] speed
 
       // protect from zero div (that should never happen)
       if (speed_tick_counter > 0)
       {
-        fix16_t r_ekv = r_ekv_sum / speed_tick_counter;
-        // TODO: hardcoded 10 => ?
-        // speed = 10.0 * r_ekv / cfg_rpm_max;
-        speed = fix16_mul(10 * r_ekv, cfg_rpm_max_inv);
+        speed = speed_sum / speed_tick_counter;
       }
-      r_ekv_sum = 0;
+      speed_sum = 0;
       speed_tick_counter = 0;
     }
   }
