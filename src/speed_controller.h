@@ -21,17 +21,16 @@ public:
   // Inputs
   fix16_t in_knob = 0;  // Knob position [0.0..1.0]
   fix16_t in_speed = 0; // Measured speed [0.0..1.0]
-  fix16_t in_power = 0; // Measured power, normal - [0.0..1.0], > 1.0 => overload
 
-  // Output power 0..100% for triac control
+  // Output power [0..1] for triac control
   fix16_t out_power = 0;
 
   // 2 PIDs inside, but only one is active:
   //
   // - `pid_speed` used in normal mode
-  // - `pid_power` used in power limit mode
+  // - `pid_limiter` used in current limit mode
   //
-  // When motor power exceeds the limit, the `pid_power` output drops below
+  // When motor current exceeds the limit, the `pid_limiter` output drops below
   // `pid_speed` output.
   //
   void tick()
@@ -51,29 +50,29 @@ public:
 
     knob_normalized = normalize_knob(in_knob);
 
-    if (!power_limit)
+    if (!limiter_active)
     {
       pid_speed_out = speed_pid_tick();
     }
 
-    fix16_t pid_power_out = power_pid_tick();
+    fix16_t pid_limiter_out = limiter_pid_tick();
 
-    // TODO: check logic, isn't pid_power_out in [0..1]?
-    if (pid_speed_out <= pid_power_out)
+    // TODO: check logic, isn't pid_limiter_out in [0..1]?
+    if (pid_speed_out <= pid_limiter_out)
     {
-      if (power_limit)
+      if (limiter_active)
       {
         // Recalculate `pid_speed_integral` to ensure smooth output change
         // after switch to normal mode
         pid_speed_integral = pid_speed_out - fix16_mul((knob_normalized - in_speed), cfg_pid_p);
-        power_limit = false;
+        limiter_active = false;
       }
       out_power = pid_speed_out;
     }
     else
     {
-      power_limit = true;
-      out_power = pid_power_out;
+      limiter_active = true;
+      out_power = pid_limiter_out;
     }
   }
 
@@ -126,9 +125,9 @@ private:
 
 
   fix16_t pid_speed_integral = 0;
-  fix16_t pid_power_integral = 0;
+  fix16_t pid_limiter_integral = 0;
   fix16_t pid_speed_out = 0;
-  bool power_limit = false;
+  bool limiter_active = false;
 
   uint32_t tick_freq_divide_counter = 0;
 
@@ -161,18 +160,20 @@ private:
     );
   }
 
-  fix16_t power_pid_tick()
+  fix16_t limiter_pid_tick()
   {
-    // float divergence = 100.0 - in_power;
-    fix16_t divergence = fix16_one - in_power;
+    // Not implemented yet
+    return 0;
+    /*fix16_t divergence = fix16_one - in_current_average;
 
-    // pid_power_integral += (1.0 / cfg_pid_i) * divergence;
-    fix16_t tmp = pid_power_integral + fix16_mul(cfg_pid_i_inv, divergence);
-    pid_power_integral = fix16_clamp_zero_one(tmp);
+    // pid_limiter_integral += (1.0 / cfg_pid_i) * divergence;
+    fix16_t tmp = pid_limiter_integral + fix16_mul(cfg_pid_i_inv, divergence);
+    pid_limiter_integral = fix16_clamp_zero_one(tmp);
 
     fix16_t proportional = fix16_mul(cfg_pid_p, divergence);
 
-    return fix16_clamp_zero_one(proportional + pid_power_integral);
+    return fix16_clamp_zero_one(proportional + pid_limiter_integral);
+    */
   }
 };
 

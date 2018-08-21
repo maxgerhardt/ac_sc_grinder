@@ -8,12 +8,6 @@
 #include "fix16_math/fix16_math.h"
 #include "app.h"
 
-// Since we can measure only positive wave, we need record data to measure
-// power. When voltage become negative, but current still flow - replay data
-// from this buffer.
-// Size is ~ twice more than required in worst case.
-constexpr int voltage_buffer_size = APP_TICK_FREQUENCY / 50;
-
 /*
   Sensors data source:
 
@@ -26,7 +20,6 @@ class Sensors
 {
 public:
 
-  fix16_t power = 0;
   fix16_t speed = 0;
   fix16_t voltage = 0;
   fix16_t current = 0;
@@ -57,10 +50,6 @@ public:
       phase_counter = 0;
     }
 
-    // Calculate average power only if number of ticks was counted
-    // in full half-period
-    if (once_period_counted) power_tick();
-
     speed_tick();
 
     phase_counter++;
@@ -71,9 +60,6 @@ public:
   // Load config from emulated EEPROM
   void configure()
   {
-    cfg_power_max_inv = fix16_from_float(1.0F /
-      eeprom_float_read(CFG_POWER_MAX_ADDR, CFG_POWER_MAX_DEFAULT));
-
     cfg_motor_resistance = fix16_from_float(
       eeprom_float_read(CFG_MOTOR_RESISTANCE_ADDR, CFG_MOTOR_RESISTANCE_DEFAULT)
     );
@@ -222,21 +208,10 @@ private:
 
   // Conig info
   fix16_t cfg_shunt_resistance_inv;
-  fix16_t cfg_power_max_inv;
   fix16_t cfg_motor_resistance;
   fix16_t cfg_rpm_max_inv;
   fix16_t cfg_motor_inductance;
   fix16_t cfg_rekv_to_speed_factor;
-
-  // Buffer for extrapolation during the negative half-period of AC voltage
-  // Record data on positive wave and replay on negative wave.
-  fix16_t voltage_buffer[voltage_buffer_size];
-
-  fix16_t p_sum = 0;
-
-  // Holds number of ticks during the period
-  // Used to calculate the average power for the period
-  uint32_t power_tick_counter = 0;
 
   // Holds number of tick when voltage crosses zero
   // Used to make the extrapolation during the interval
@@ -260,61 +235,6 @@ private:
   // Holds number of ticks since triac is on
   uint32_t triac_on_counter = 0;
 
-  void power_tick()
-  {
-    // TODO: should detect & use phase shift
-
-    // Positive sine wave
-    if ((current > 0) && (voltage > 0))
-    {
-      p_sum += fix16_mul(voltage, current);
-      power_tick_counter++;
-    }
-    // Negative sine vave => extrapolate voltage
-    else if (voltage == 0)
-    {
-      // If this is tick when voltage crosses zero (down), save tick number
-      if (prev_voltage > 0)
-      {
-        voltage_zero_cross_tick_count = power_tick_counter;
-      }
-
-      if (current > 0)
-      {
-        // Now voltage is negative, but current is still positive
-        // Inductance gives power back to the supply
-        // This power must be substracted from power sum
-        fix16_t extrapolated_voltage = voltage_buffer[power_tick_counter - voltage_zero_cross_tick_count];
-
-        p_sum -= fix16_mul(extrapolated_voltage, current);
-        power_tick_counter++;
-      }
-    }
-
-    if ((prev_current > 0) && (current == 0))
-    {
-      // Now we are at negative wave and shunt current ended
-      // Time to calculate average power, and normalize it to [0.0..1.0]
-      //
-      // Normalized power = (p_sum / period_in_ticks) / cfg_power_max;
-      // power > 1.0 => overload
-      //
-      // protect from zero div (that should never happen)
-      if (period_in_ticks > 0)
-      {
-        power = fix16_mul(p_sum / period_in_ticks, cfg_power_max_inv);
-      }
-      power_tick_counter = 0;
-    }
-
-    // We should never have bufer overrun, but let's keep protection from
-    // memory corruption for safety.
-    if (power_tick_counter < voltage_buffer_size)
-    {
-      voltage_buffer[power_tick_counter] = voltage;
-    }
-  }
-
   fix16_t speed_sum = 0;
   // Holds number of ticks per sum
   uint32_t speed_tick_counter = 0;
@@ -336,16 +256,16 @@ private:
       fix16_t r_ekv = fix16_div(voltage, current)
         - cfg_motor_resistance
         - fix16_div(fix16_mul(cfg_motor_inductance, di_dt), current);
-      
-      fix16_t _spd_single = fix16_div(r_ekv, cfg_rekv_to_speed_factor); 
-      
+
+      fix16_t _spd_single = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
+
       // Drop wrong measurements
       if ((_spd_single > 0) && (_spd_single < F16(1.1)))
       {
         speed_sum += _spd_single;
         speed_tick_counter++;
       }
-      
+
     }
 
     if ((prev_voltage > 0) && (voltage == 0))
@@ -360,7 +280,7 @@ private:
       speed_sum = 0;
       speed_tick_counter = 0;
     }
-    
+
   }
 };
 

@@ -74,7 +74,6 @@ void app_start(void)
 
     speedController.in_knob = sensors.knob;
     speedController.in_speed = sensors.speed;
-    speedController.in_power = sensors.power;
 
     speedController.tick();
 
