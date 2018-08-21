@@ -250,7 +250,7 @@ private:
     // - skip couple of ticks after triac on
     // - skip everything after voltage become negative (become zero in our case)
     //
-    if ((triac_on_counter > 1) && (voltage > 0))
+    if ((triac_on_counter > 3) && (voltage > 0))
     {
       fix16_t di_dt = (current - prev_current) * APP_TICK_FREQUENCY;
       fix16_t r_ekv = fix16_div(voltage, current)
@@ -259,13 +259,12 @@ private:
 
       fix16_t _spd_single = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
 
-      // Drop wrong measurements
-      if ((_spd_single > 0) && (_spd_single < F16(1.1)))
+      // Overflow protection, when scale factor not defined well
+      if (fix16_maximum - speed_sum > _spd_single)
       {
         speed_sum += _spd_single;
         speed_tick_counter++;
       }
-
     }
 
     if ((prev_voltage > 0) && (voltage == 0))
