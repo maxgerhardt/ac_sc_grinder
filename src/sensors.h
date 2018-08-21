@@ -8,12 +8,6 @@
 #include "fix16_math/fix16_math.h"
 #include "app.h"
 
-// While triac is off, current may be positive
-// due to interference. This threshold value
-// must be greater than interference level.
-// 2 bits of ADC
-#define MINIMAL_CURRENT_THRESHOLD F16(0.0064453125)
-
 // Since we can measure only positive wave, we need record data to measure
 // power. When voltage become negative, but current still flow - replay data
 // from this buffer.
@@ -263,6 +257,9 @@ private:
   bool once_zero_crossed = false;
   bool once_period_counted = false;
 
+  // Holds number of ticks since triac is on
+  uint32_t triac_on_counter = 0;
+
   void power_tick()
   {
     // TODO: should detect & use phase shift
@@ -325,24 +322,30 @@ private:
 
   void speed_tick()
   {
-    if (voltage > 0)
-    {
-      // Don't measure speed when triac is off
-      if (current > MINIMAL_CURRENT_THRESHOLD)
-      {
-        fix16_t di_dt = (current - prev_current) * APP_TICK_FREQUENCY;
-        // r_ekv ~ 1000, accuracy ok
-        fix16_t r_ekv = fix16_div(voltage, current)
-          - cfg_motor_resistance
-          - fix16_div(fix16_mul(cfg_motor_inductance, di_dt), current);
+    if (in_triac_on) triac_on_counter ++;
+    else triac_on_counter = 0;
 
-        // Drop  data when current derivative < 0 (bad accuracy)
-        if (di_dt <= 0)
-        {
-          speed_sum += fix16_div(r_ekv, cfg_rekv_to_speed_factor);
-          speed_tick_counter++;
-        }
+    // We should measure speed when triac is on and data is trustable:
+    //
+    // - skip couple of ticks after triac on
+    // - skip everything after voltage become negative (become zero in our case)
+    //
+    if ((triac_on_counter > 1) && (voltage > 0))
+    {
+      fix16_t di_dt = (current - prev_current) * APP_TICK_FREQUENCY;
+      fix16_t r_ekv = fix16_div(voltage, current)
+        - cfg_motor_resistance
+        - fix16_div(fix16_mul(cfg_motor_inductance, di_dt), current);
+      
+      fix16_t _spd_single = fix16_div(r_ekv, cfg_rekv_to_speed_factor); 
+      
+      // Drop wrong measurements
+      if ((_spd_single > 0) && (_spd_single < F16(1.1)))
+      {
+        speed_sum += _spd_single;
+        speed_tick_counter++;
       }
+      
     }
 
     if ((prev_voltage > 0) && (voltage == 0))
@@ -357,6 +360,7 @@ private:
       speed_sum = 0;
       speed_tick_counter = 0;
     }
+    
   }
 };
 
