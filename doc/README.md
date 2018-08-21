@@ -16,17 +16,15 @@ R<sub>ekv</sub> - equivalent resistance which is created by the back-EMF.
 
 __The motor speed is proportional to the R<sub>ekv</sub>.__
 
-In theory, speed can be calculated any time while triac is open. But in real
-world it's better to drop head/tail measurements for safe use of fixed point math:
+Now let's check real world data (see `/data` folder). It's very noisy. We used
+this approach:
 
-- _Head drop_. Immediately after triac turns on, current is rising rapidly
-  and derivative accuracy is very bad. It is good idea to wait until derivative
-  becomes negative.
-- _Tail drop_. It worth to drop tail measurements to avoid zero division and
-  precision loss when current is close to 0. Instead of invent current-based
-  criteria, it's very attractive to use point when voltage crosses zero.
-  According to modeling results, we should have enougth data in all motor modes
-  after such trim (because current is still big enough).
+- Calculate speed only since triac on and until voltage > 0
+- For each result, drop speed if it's far from [0..1]
+- Take mean from the rest.
+
+That seems to work. But it may be worth to replace mean with median or
+truncated mean for sure.
 
 
 ## Data flow
