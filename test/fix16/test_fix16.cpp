@@ -1,4 +1,4 @@
-/*#ifdef UNIT_TEST
+#ifdef UNIT_TEST
 
 #include <unity.h>
 
@@ -17,4 +17,4 @@ int main() {
 }
 
 
-#endif*/
+#endif
