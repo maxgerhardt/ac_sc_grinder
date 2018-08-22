@@ -135,7 +135,7 @@ public:
     }
   }
 
-//private:
+private:
   T heap_lo[SIZE / 2 + (SIZE & 1)];
   int heap_lo_len;
   int heap_lo_max_idx;
