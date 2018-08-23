@@ -31,13 +31,13 @@ public:
         if (knob < KNOB_TRESHOLD)
         {
           cal_state_cnt++;
-          if (cal_state_cnt > knob_wait_min) set_state(UP_CHECK);
+          if (cal_state_cnt > knob_wait_min) set_state(KNOB_UP_CHECK);
         }
         else reset();
 
         break;
 
-      case UP_CHECK:
+      case KNOB_UP_CHECK:
         if (knob < KNOB_TRESHOLD && cal_state_cnt == 0) break;
 
         if (knob >= KNOB_TRESHOLD)
@@ -51,20 +51,20 @@ public:
         {
           cal_knob_dials++;
           if (cal_knob_dials >= 3) set_state(PRE_PAUSE);
-          else set_state(DOWN_CHECK);
+          else set_state(KNOB_DOWN_CHECK);
         }
         else reset();
 
         break;
 
-      case DOWN_CHECK:
+      case KNOB_DOWN_CHECK:
         if (knob < KNOB_TRESHOLD) {
           cal_state_cnt++;
           if (cal_state_cnt > knob_wait_max) reset();
           break;
         }
 
-        if (cal_state_cnt > knob_wait_min) set_state(UP_CHECK);
+        if (cal_state_cnt > knob_wait_min) set_state(KNOB_UP_CHECK);
         else reset();
 
         break;
@@ -102,8 +102,8 @@ private:
 
   enum CalibratorState {
     IDLE,
-    UP_CHECK,
-    DOWN_CHECK,
+    KNOB_UP_CHECK,
+    KNOB_DOWN_CHECK,
     PRE_PAUSE,
     CALIBRATE_STATIC,
     CALIBRATE_DYNAMIC
