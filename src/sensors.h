@@ -25,6 +25,13 @@ public:
   fix16_t current = 0;
   fix16_t knob = 0; // Speed knob physical value, 0..1
 
+  // Config info
+  fix16_t cfg_shunt_resistance_inv;
+  fix16_t cfg_motor_resistance;
+  fix16_t cfg_rpm_max_inv;
+  fix16_t cfg_motor_inductance;
+  fix16_t cfg_rekv_to_speed_factor;
+
   // Input from triac driver to reflect triac state. Needed for speed measure
   // to drop noise. Autoupdated by triac driver.
   bool in_triac_on = false;
@@ -205,13 +212,6 @@ private:
     voltage = fix16_mul(fix16_mul(adc_voltage << 4, v_ref), F16(301.5/1.5));
 
   }
-
-  // Conig info
-  fix16_t cfg_shunt_resistance_inv;
-  fix16_t cfg_motor_resistance;
-  fix16_t cfg_rpm_max_inv;
-  fix16_t cfg_motor_inductance;
-  fix16_t cfg_rekv_to_speed_factor;
 
   // Holds number of tick when voltage crosses zero
   // Used to make the extrapolation during the interval

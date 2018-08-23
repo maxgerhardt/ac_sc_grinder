@@ -18,8 +18,8 @@ extern Sensors sensors;
 
 #define KNOB_TRESHOLD F16(0.05)
 
-#define IS_KNOB_DOWN(val) (val < KNOB_TRESHOLD)
-#define IS_KNOB_UP(val)   (val >= KNOB_TRESHOLD)
+#define IS_KNOB_LOW(val)  (val < KNOB_TRESHOLD)
+#define IS_KNOB_HIGH(val) (val >= KNOB_TRESHOLD)
 
 constexpr int knob_wait_min = APP_TICK_FREQUENCY * 0.2;
 constexpr int knob_wait_max = APP_TICK_FREQUENCY * 1.0;
@@ -37,7 +37,7 @@ public:
     // First, check that knob is zero,
     // prior to start detect dial sequence
     case IDLE:
-      if (IS_KNOB_DOWN(knob))
+      if (IS_KNOB_LOW(knob))
       {
         // If knob is zero long enougth - go to 0 -> 1 edge detect
         ticks_cnt++;
@@ -53,10 +53,10 @@ public:
     // and increment dials
     case KNOB_UP_CHECK:
       // Knob and counters are 0 => we are just from IDLE state, do nothing,
-      if (IS_KNOB_DOWN(knob) && ticks_cnt == 0) break;
+      if (IS_KNOB_LOW(knob) && ticks_cnt == 0) break;
 
       // Finally, knob is up => count time & reset state if too long
-      if (IS_KNOB_UP(knob))
+      if (IS_KNOB_HIGH(knob))
       {
         ticks_cnt++;
         if (ticks_cnt > knob_wait_max) reset();
@@ -87,7 +87,7 @@ public:
 
     case KNOB_DOWN_CHECK:
       // Measure down state length and reset if too long
-      if (IS_KNOB_DOWN(knob))
+      if (IS_KNOB_LOW(knob))
       {
         ticks_cnt++;
         if (ticks_cnt > knob_wait_max) reset();

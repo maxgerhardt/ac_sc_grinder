@@ -9,6 +9,7 @@
 #include "app.h"
 #include "triac_driver.h"
 #include "calibrator/calibrator_wait_knob_dial.h"
+#include "calibrator/calibrator_speed_scale.h"
 
 extern TriacDriver triacDriver;
 
@@ -41,8 +42,12 @@ public:
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
-      if (ticks_cnt++ > 1 * APP_TICK_FREQUENCY) set_state(CALIBRATE_STATIC);
+      if (ticks_cnt++ > 1 * APP_TICK_FREQUENCY) set_state(CALIBRATE_SPEED_SCALE);
 
+      return true;
+
+    case CALIBRATE_SPEED_SCALE:
+      if (calibrate_speed_scale.tick()) set_state(CALIBRATE_STATIC);
       return true;
 
     case CALIBRATE_STATIC:
@@ -64,6 +69,7 @@ private:
   enum CalibratorState {
     WAIT_START_CONDITION,
     PRE_PAUSE,
+    CALIBRATE_SPEED_SCALE,
     CALIBRATE_STATIC
   } state = WAIT_START_CONDITION;
 
@@ -76,6 +82,7 @@ private:
 
   // Nested FSM-s
   CalibratorWaitKnobDial wait_knob_dial;
+  CalibratorSpeedScale calibrate_speed_scale;
 };
 
 #endif
