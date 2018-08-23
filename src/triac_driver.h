@@ -104,11 +104,11 @@ private:
   bool once_period_counted = false;
 
   // Helpers to switch triac and update related data.
-  void inline triac_ignition_on(void) {
+  void inline triac_ignition_on() {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
     if (ref_sensors != nullptr) ref_sensors->in_triac_on = true;
   }
-  void inline triac_ignition_off(void) {
+  void inline triac_ignition_off() {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
   }
 

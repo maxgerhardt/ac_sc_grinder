@@ -39,7 +39,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle)
 
 
 // Main app loop.
-void app_start(void)
+void app_start()
 {
   // Load config info from emulated EEPROM
   speedController.configure();

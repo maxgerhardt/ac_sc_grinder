@@ -21,7 +21,7 @@ class Calibrator
 {
 public:
 
-  bool tick(void) {
+  bool tick() {
     fix16_t knob = sensors.knob;
 
     switch (cal_state) {
@@ -118,7 +118,7 @@ private:
     cal_state_cnt = 0;
   }
 
-  void reset(void)
+  void reset()
   {
     cal_knob_dials = 0;
     set_state(IDLE);

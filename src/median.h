@@ -17,7 +17,7 @@ public:
     reset();
   }
 
-  void reset(void)
+  void reset()
   {
     heap_lo_len = 0;
     heap_hi_len = 0;
@@ -25,7 +25,7 @@ public:
     heap_hi_min_idx = 0;
   }
 
-  T result(void)
+  T result()
   {
     int total_len = heap_lo_len + heap_hi_len;
 
@@ -144,7 +144,7 @@ private:
   int heap_hi_len;
   int heap_hi_min_idx;
 
-  int get_heap_lo_max_idx(void)
+  int get_heap_lo_max_idx()
   {
     int i, idx;
     i = idx = heap_lo_len - 1;
@@ -158,7 +158,7 @@ private:
     return idx;
   }
 
-  int get_heap_hi_min_idx(void)
+  int get_heap_hi_min_idx()
   {
     int i, idx;
     i = idx = heap_hi_len - 1;

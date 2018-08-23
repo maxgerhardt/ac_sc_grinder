@@ -16,7 +16,7 @@
 #define APP_TICK_FREQUENCY 17857
 
 
-extern void app_start(void);
+extern void app_start();
 
 #ifdef __cplusplus
   }
