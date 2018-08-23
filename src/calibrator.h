@@ -1,128 +1,81 @@
 #ifndef __CALIBRATOR_H__
 #define __CALIBRATOR_H__
 
+// Detect when used dials knob 3 times, start calibration sequence and
+// update configuration.
 
 #include "fix16_math/fix16_math.h"
 
 #include "app.h"
-#include "sensors.h"
 #include "triac_driver.h"
+#include "calibrator/calibrator_wait_knob_dial.h"
 
-extern Sensors sensors;
 extern TriacDriver triacDriver;
 
-
-#define KNOB_TRESHOLD F16(0.05)
-
-constexpr int knob_wait_min = APP_TICK_FREQUENCY * 0.2;
-constexpr int knob_wait_max = APP_TICK_FREQUENCY * 1.0;
 
 class Calibrator
 {
 public:
 
+  // Returns:
+  //
+  // - false: we should continue in normal more
+  // - true:  calibration started, we should stop other actions in main
+  //          loop until finished.
+  //
   bool tick() {
-    fix16_t knob = sensors.knob;
 
-    switch (cal_state) {
+    switch (state) {
 
-      case IDLE:
-
-        if (knob < KNOB_TRESHOLD)
-        {
-          cal_state_cnt++;
-          if (cal_state_cnt > knob_wait_min) set_state(KNOB_UP_CHECK);
-        }
-        else reset();
-
-        break;
-
-      case KNOB_UP_CHECK:
-        if (knob < KNOB_TRESHOLD && cal_state_cnt == 0) break;
-
-        if (knob >= KNOB_TRESHOLD)
-        {
-          cal_state_cnt++;
-          if (cal_state_cnt > knob_wait_max) reset();
-          break;
-        }
-
-        if (cal_state_cnt > knob_wait_min)
-        {
-          cal_knob_dials++;
-          if (cal_knob_dials >= 3) set_state(PRE_PAUSE);
-          else set_state(KNOB_DOWN_CHECK);
-        }
-        else reset();
-
-        break;
-
-      case KNOB_DOWN_CHECK:
-        if (knob < KNOB_TRESHOLD) {
-          cal_state_cnt++;
-          if (cal_state_cnt > knob_wait_max) reset();
-          break;
-        }
-
-        if (cal_state_cnt > knob_wait_min) set_state(KNOB_UP_CHECK);
-        else reset();
-
-        break;
-
-      // From now we are in calibration more. Should care about triac and
-      // return true
-
-      case PRE_PAUSE:
-        // 1 sec pause to stop motor for sure
-        triacDriver.voltage = sensors.voltage;
-        triacDriver.setpoint = 0;
-        triacDriver.tick();
-
-        if (cal_state_cnt++ > 1 * APP_TICK_FREQUENCY) set_state(CALIBRATE_STATIC);
-
+    case WAIT_START_CONDITION:
+      // Wait until user dials knob 3 times to start calibration
+      if (wait_knob_dial.tick()) {
+        set_state(PRE_PAUSE);
         return true;
+      }
+      return false;
 
-      case CALIBRATE_STATIC:
-        // Dummy stub, 2 sec max speed to show it works
-        triacDriver.voltage = sensors.voltage;
-        triacDriver.setpoint = fix16_one;
-        triacDriver.tick();
+    case PRE_PAUSE:
+      // 1 sec pause to stop motor for sure
+      triacDriver.voltage = sensors.voltage;
+      triacDriver.setpoint = 0;
+      triacDriver.tick();
 
-        if (cal_state_cnt++ > 2 * APP_TICK_FREQUENCY) reset();
+      if (ticks_cnt++ > 1 * APP_TICK_FREQUENCY) set_state(CALIBRATE_STATIC);
 
-        return true;
+      return true;
 
-      default:
-        reset();
+    case CALIBRATE_STATIC:
+      // Dummy stub, 2 sec max speed to show it works
+      triacDriver.voltage = sensors.voltage;
+      triacDriver.setpoint = fix16_one;
+      triacDriver.tick();
+
+      if (ticks_cnt++ > 2 * APP_TICK_FREQUENCY) set_state(WAIT_START_CONDITION);
+
+      return true;
     }
-    return false;
+
+    return false; // unreacheable, suppress warning
   }
 
 private:
 
   enum CalibratorState {
-    IDLE,
-    KNOB_UP_CHECK,
-    KNOB_DOWN_CHECK,
+    WAIT_START_CONDITION,
     PRE_PAUSE,
-    CALIBRATE_STATIC,
-    CALIBRATE_DYNAMIC
-  } cal_state = IDLE;
+    CALIBRATE_STATIC
+  } state = WAIT_START_CONDITION;
 
-  int cal_state_cnt = 0;
-  int cal_knob_dials = 0;
+  int ticks_cnt = 0;
 
-  void set_state(CalibratorState st)
-  {
-    cal_state = st;
-    cal_state_cnt = 0;
+  void set_state(CalibratorState st) {
+    state = st;
+    ticks_cnt = 0;
   }
 
-  void reset()
-  {
-    cal_knob_dials = 0;
-    set_state(IDLE);
-  }
+  // Nested FSM-s
+  CalibratorWaitKnobDial wait_knob_dial;
 };
 
 #endif
