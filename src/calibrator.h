@@ -1,7 +1,7 @@
 #ifndef __CALIBRATOR_H__
 #define __CALIBRATOR_H__
 
-// Detect when used dials knob 3 times, start calibration sequence and
+// Detect when user dials knob 3 times, start calibration sequence and
 // update configuration.
 
 #include "fix16_math/fix16_math.h"
@@ -19,7 +19,7 @@ public:
 
   // Returns:
   //
-  // - false: we should continue in normal more
+  // - false: we should continue in normal mode
   // - true:  calibration started, we should stop other actions in main
   //          loop until finished.
   //
