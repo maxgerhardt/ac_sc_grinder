@@ -6,6 +6,7 @@
 #include "eeprom_float.h"
 #include "config_map.h"
 #include "fix16_math/fix16_math.h"
+#include "median.h"
 #include "app.h"
 
 /*
@@ -235,10 +236,7 @@ private:
   // Holds number of ticks since triac is on
   uint32_t triac_on_counter = 0;
 
-  fix16_t speed_sum = 0;
-  // Holds number of ticks per sum
-  uint32_t speed_tick_counter = 0;
-
+  MedianIteratorTemplate<fix16_t, 32> median_speed_filter;
 
   void speed_tick()
   {
@@ -258,26 +256,15 @@ private:
         - fix16_div(fix16_mul(cfg_motor_inductance, di_dt), current);
 
       fix16_t _spd_single = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
-
-      // Overflow protection, when scale factor not defined well
-      if (fix16_maximum - speed_sum > _spd_single)
-      {
-        speed_sum += _spd_single;
-        speed_tick_counter++;
-      }
+      
+      median_speed_filter.add(_spd_single);
     }
 
     if ((prev_voltage > 0) && (voltage == 0))
     {
       // Now we are at negative wave, update [normalized] speed
-
-      // protect from zero div (that should never happen)
-      if (speed_tick_counter > 0)
-      {
-        speed = speed_sum / speed_tick_counter;
-      }
-      speed_sum = 0;
-      speed_tick_counter = 0;
+      speed = median_speed_filter.result();
+      median_speed_filter.reset();
     }
 
   }
