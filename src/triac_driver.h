@@ -37,6 +37,7 @@ public:
     if (!once_period_counted)
     {
       phase_counter++;
+      prev_voltage = voltage;
       return;
     }
 
