@@ -26,7 +26,7 @@ public:
     switch (state) {
 
     // Gently run motor at max speed, in 3 sec
-    case ST_START:
+    case START:
       // Reset scaling factor
       sensors.cfg_rekv_to_speed_factor = fix16_one;
       prev_speed = 0;
@@ -41,12 +41,12 @@ public:
       triacDriver.tick();
 
       // 3 secs ticked => continue with next state
-      if (ticks_cnt++ >= calibrator_motor_startup_ticks) set_state(ST_MEASURE);
+      if (ticks_cnt++ >= calibrator_motor_startup_ticks) set_state(MEASURE);
 
       break;
 
     // Wait until speed deviation < 3% in 0.2 sec
-    case ST_MEASURE:
+    case MEASURE:
       // Continue run at max speed
       triacDriver.voltage = sensors.voltage;
       triacDriver.setpoint = fix16_one;
@@ -64,12 +64,12 @@ public:
           // Save data to EEPROM and update sensors config
           eeprom_float_write(CFG_REKV_TO_SPEED_FACTOR_ADDR, fix16_to_float(sensors.speed));
           sensors.cfg_rekv_to_speed_factor = sensors.speed;
-          set_state(ST_STOP);
+          set_state(STOP);
         }
         else
         {
           // Speed is not stable => try again
-          set_state(ST_MEASURE);
+          set_state(MEASURE);
           // Store value for next compare
           prev_speed = current_speed;
         }
@@ -78,13 +78,13 @@ public:
       break;
 
     // Motor off and wait 1 sec
-    case ST_STOP:
+    case STOP:
       triacDriver.voltage = sensors.voltage;
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
       if (ticks_cnt++ > 1 * APP_TICK_FREQUENCY) {
-        set_state(ST_START);
+        set_state(START);
         return true;
       }
 
@@ -97,10 +97,10 @@ public:
 private:
 
   enum State {
-    ST_START,
-    ST_MEASURE,
-    ST_STOP
-  } state = ST_START;
+    START,
+    MEASURE,
+    STOP
+  } state = START;
 
   int ticks_cnt = 0;
 
