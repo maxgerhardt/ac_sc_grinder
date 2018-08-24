@@ -107,6 +107,6 @@ schema:
         Constructive coefficient between normalized motor speed
         and back-EMF equivalent resistance. Can be autocalibrated.
       required: true
-      default: 1000
+      default: 600
       minimum: 100
       maximum: 10000
