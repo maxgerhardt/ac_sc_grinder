@@ -57,7 +57,6 @@ public:
 
     fix16_t pid_limiter_out = limiter_pid_tick();
 
-    // TODO: check logic, isn't pid_limiter_out in [0..1]?
     if (pid_speed_out <= pid_limiter_out)
     {
       if (limiter_active)
@@ -163,7 +162,7 @@ private:
   fix16_t limiter_pid_tick()
   {
     // Not implemented yet
-    return 0;
+    return F16(1.0);
     /*fix16_t divergence = fix16_one - in_current_average;
 
     // pid_limiter_integral += (1.0 / cfg_pid_i) * divergence;
