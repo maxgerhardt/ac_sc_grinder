@@ -67,17 +67,18 @@ RomVars<FlashDriver, (64 - 1 - 2) * FLASH_PAGE_SIZE> eeprom;
 
 float eeprom_float_read(int addr, float default_value)
 {
-  /*if (eeprom[addr * 3] != EEPROM_COMMIT_MARK) return default_value;
+  if (eeprom[addr * 3] != EEPROM_COMMIT_MARK) return default_value;
 
   uint32_t hi = eeprom[addr * 3 + 1];
   uint32_t lo = eeprom[addr * 3 + 2];
+
 
   union { uint32_t i; float f; } x;
 
   x.i = (hi << 16) | lo;
 
-  return x.f;*/
-  return default_value;
+  return x.f;
+  //return default_value;
 }
 
 void eeprom_float_write(int addr, float val)
@@ -90,6 +91,11 @@ void eeprom_float_write(int addr, float val)
   eeprom[addr * 3 + 1] = data >> 16;
   eeprom[addr * 3 + 2] = data & 0xFFFF;
   eeprom[addr * 3] = EEPROM_COMMIT_MARK;
+}
+
+void eeprom_float_init()
+{
+  eeprom.init();
 }
 
 
