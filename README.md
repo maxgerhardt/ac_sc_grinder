@@ -1,6 +1,8 @@
 Grinder speed control with stable RPM
 =====================================
 
+[![Gitter chat](https://badges.gitter.im/speedcontrols/ac_sc_grinder.svg)](https://gitter.im/speedcontrols/ac_sc_grinder)
+
 __WORK IN PROGRESS !!!__
 
 > Advanced speed control for grinder AC brushed motor. With RPM stabilization
