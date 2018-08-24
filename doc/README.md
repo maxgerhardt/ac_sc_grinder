@@ -26,6 +26,25 @@ this approach:
 That seems to work. But it may be worth to replace mean with median or
 truncated mean for sure.
 
+## Autocalibration
+
+### Motor resistance and inductance calibration
+
+If motor isn't rotating, active power is equivalent to Joule power
+on motor resistance. Integrals can be replaced by sums.
+
+[![motor power balance equations](http://mathurl.com/ybwtldyx.png)](http://mathurl.com/ybwtldyx)
+
+Count all ticks from triac opening to moment
+when current crosses zero.
+
+[![motor resistance formula](http://mathurl.com/y83s3tu6.png)](http://mathurl.com/y83s3tu6)
+
+When resistance was determined, inductance can be calculated at any
+point by this formula:
+
+[![motor inductance formula](http://mathurl.com/yaphkfos.png)](http://mathurl.com/yaphkfos)
+
 
 ## Data flow
 
