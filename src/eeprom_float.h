@@ -2,19 +2,13 @@
 #define __EEPROM_FLOAT__
 
 /*
-  Wrapper to load float numbers from emulated eeprom.
+  Wrapper to read/write float numbers to emulated eeprom.
+  All ops are translated to uint16_t read/write.
 
-  1. If value not exists - return default param.
-  2. Address value is logical, should be converted to physycal, according to
-     data size.
-
-  Current stub always return default value.
+  Note 1. eeprom_float_init() must be called before start.
+  Note 2. Address must be > 0 and < 64 for 1K flash sector size.
 */
 
-/*
-  !!! NOTE: this feature is reserved, to unify params loading style.
-  Probably will never be implemented.
-*/
 
 #include "eeprom_emu.h"
 
@@ -72,13 +66,11 @@ float eeprom_float_read(int addr, float default_value)
   uint32_t hi = eeprom[addr * 3 + 1];
   uint32_t lo = eeprom[addr * 3 + 2];
 
-
   union { uint32_t i; float f; } x;
 
   x.i = (hi << 16) | lo;
 
   return x.f;
-  //return default_value;
 }
 
 void eeprom_float_write(int addr, float val)

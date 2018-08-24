@@ -9,6 +9,7 @@
 #include "app.h"
 #include "triac_driver.h"
 #include "calibrator/calibrator_wait_knob_dial.h"
+#include "calibrator/calibrator_rl.h"
 #include "calibrator/calibrator_speed_scale.h"
 
 extern TriacDriver triacDriver;
@@ -31,33 +32,20 @@ public:
     case WAIT_START_CONDITION:
       // Wait until user dials knob 3 times to start calibration
       if (wait_knob_dial.tick()) {
-        set_state(PRE_PAUSE);
+        set_state(CALIBRATE_RL);
         return true;
       }
       return false;
 
-    case PRE_PAUSE:
-      // 1 sec pause to stop motor for sure
-      triacDriver.voltage = sensors.voltage;
-      triacDriver.setpoint = 0;
-      triacDriver.tick();
+    case CALIBRATE_RL:
+      // temporary, skip this step
+      set_state(CALIBRATE_SPEED_SCALE); return true;
 
-      if (ticks_cnt++ > 1 * APP_TICK_FREQUENCY) set_state(CALIBRATE_SPEED_SCALE);
-
+      if (calibrate_rl.tick()) set_state(CALIBRATE_SPEED_SCALE);
       return true;
 
     case CALIBRATE_SPEED_SCALE:
-      if (calibrate_speed_scale.tick()) set_state(CALIBRATE_STATIC);
-      return true;
-
-    case CALIBRATE_STATIC:
-      // Dummy stub, 2 sec max speed to show it works
-      triacDriver.voltage = sensors.voltage;
-      triacDriver.setpoint = fix16_one;
-      triacDriver.tick();
-
-      if (ticks_cnt++ > 2 * APP_TICK_FREQUENCY) set_state(WAIT_START_CONDITION);
-
+      if (calibrate_speed_scale.tick()) set_state(WAIT_START_CONDITION);
       return true;
     }
 
@@ -68,9 +56,8 @@ private:
 
   enum CalibratorState {
     WAIT_START_CONDITION,
-    PRE_PAUSE,
-    CALIBRATE_SPEED_SCALE,
-    CALIBRATE_STATIC
+    CALIBRATE_RL,
+    CALIBRATE_SPEED_SCALE
   } state = WAIT_START_CONDITION;
 
   int ticks_cnt = 0;
@@ -82,6 +69,7 @@ private:
 
   // Nested FSM-s
   CalibratorWaitKnobDial wait_knob_dial;
+  CalibratorRL calibrate_rl;
   CalibratorSpeedScale calibrate_speed_scale;
 };
 
