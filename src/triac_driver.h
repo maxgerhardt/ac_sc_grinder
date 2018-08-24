@@ -7,8 +7,9 @@
 
 #include "sensors.h"
 
-// Minimal voltage for guaranteed triac opening.
-#define MIN_IGNITION_VOLTAGE (F16(25))
+// Don't open triac at the end of wave. Helps to avoid issues if measured zero
+// cross point drifted a bit.
+#define TRIAC_ZERO_TAIL_LENGTH 4
 
 class TriacDriver
 {
@@ -31,39 +32,48 @@ public:
       rearm();
     }
 
-    // Measure ticks after positive zero gross until voltage > MIN_IGNITION_VOLTAGE.
-    // That's done on each positive wave and result is reused on negative wave.
-    if ((voltage >= MIN_IGNITION_VOLTAGE) && (prev_voltage < MIN_IGNITION_VOLTAGE))
-    {
-      if (once_zero_crossed) safe_ignition_threshold = phase_counter;
-    }
-
     // If period_in_ticks is not yet detected, only increment phase_counter,
-    // don't turn on triac anyway.
+    // don't touch triac.
     if (!once_period_counted)
     {
       phase_counter++;
       return;
     }
 
-    // If triac was activated (in prev tick) and still active - deactivate it.
-    if (triac_open_done && !triac_close_done) {
+    // We keep optotriac open continiously after calculated phase shift. Pulse
+    // commutation is not safe because triac current can flow after voltage
+    // is zero. If we pulse at this moment, next period will be lost.
+    //
+    // So, we keep optotriac open until the end, and pay for it with 10ma load
+    // at 3.3v.
+    //
+    // We should close opto-triac at the and of half-wave. To be sure - do it
+    // in advance, 4 ticks before.
+
+    if ((triac_open_done && !triac_close_done) &&
+        (phase_counter + TRIAC_ZERO_TAIL_LENGTH >= positive_period_in_ticks)) {
       triac_close_done = true;
       triac_ignition_off();
     }
 
-    // If triac was not yet activated - check if we can do this
-    if (!triac_open_done && (phase_counter >= safe_ignition_threshold)) {
+    // If ignition was not yet activated - check if we can do this
+    if (!triac_open_done) {
       // "Linearize" setpoint to phase shift & scale to 0..1
       fix16_t normalized_setpoint = fix16_sinusize(setpoint);
 
-      // Calculate ticks treshold when triac should be enabled:
+      // Calculate ticks treshold when ignition should be enabled:
       // "mirror" and "enlarge" normalized setpoint
       uint32_t ticks_threshold = fix16_to_int(
-          (fix16_one - normalized_setpoint) * correct_period_in_ticks
-        ) + threshold_correction;
+        (fix16_one - normalized_setpoint) * positive_period_in_ticks
+      );
 
-      if (phase_counter >= ticks_threshold) {
+      // We can open triack if:
+      //
+      // 1. Required phase shift found
+      // 2. Tail is not too small (last 4 ticks are dead for safety)
+
+      if ((phase_counter >= ticks_threshold) &&
+          (phase_counter + TRIAC_ZERO_TAIL_LENGTH < positive_period_in_ticks)) {
         triac_open_done = true;
         triac_ignition_on();
       }
@@ -80,23 +90,6 @@ private:
 
   // Holds measured number of ticks per positive half-period
   uint32_t positive_period_in_ticks = 0;
-  // Holds measured number of ticks per negative half-period
-  uint32_t negative_period_in_ticks = 0;
-  // Due to filtration before zero-crossing detection
-  // measured positive half-period of voltage is bigger than
-  // measured negative half-period. Real length of half-period
-  // is (positive + negative / 2)
-  // Holds real number of ticks per half-period
-  uint32_t correct_period_in_ticks = 0;
-
-  // Holds number of ticks by which zero-cross points are
-  // shifted in time due to filtration before zero-crossing detection
-  int32_t threshold_correction = 0;
-
-  // Holds ticks threshold when triac control signal is safe to turn off, vlotage > 25v
-  // Initial value set to 0 because during the first period triac
-  // won't turn on anyway
-  uint32_t safe_ignition_threshold = 0;
 
   fix16_t prev_voltage = 0;
 
@@ -124,23 +117,8 @@ private:
     // ticks in half-period
     if (once_period_counted)
     {
-      if (voltage == 0)
-      {
-        positive_period_in_ticks = phase_counter;
-        // Zero-cross points are shifted in time due to filtration
-        // For negative half-period correction must be negative
-        threshold_correction = - threshold_correction;
-      }
-
-      if (voltage > 0)
-      {
-        negative_period_in_ticks = phase_counter;
-        // Real length of half-period
-        correct_period_in_ticks = (positive_period_in_ticks + negative_period_in_ticks) / 2;
-        // Zero-cross points are shifted in time due to filtration, calculate this shift
-        // For positive half-period correction is positive
-        threshold_correction = (positive_period_in_ticks - correct_period_in_ticks) / 2;
-      }
+      // Measure period on positive half wave only
+      if (voltage == 0) positive_period_in_ticks = phase_counter;
     }
 
     phase_counter = 0;
