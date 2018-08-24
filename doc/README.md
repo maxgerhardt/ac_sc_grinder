@@ -34,7 +34,7 @@ stopped state, passing 1 pulse (positive period of sine wave) and observing
 current's behaviour.
 
 
-### Motor's resistance (R) calibration.
+### Motor's resistance (R) calibration
 
 If motor isn't rotating, active power is equivalent to Joule power
 on motor resistance. Integrals can be replaced by sums.
@@ -53,11 +53,14 @@ zero! Since we can't measure negative voltage, we use simple trick: record
 pozitive value into memory, and replay after zero cross.
 
 If you need to implement this on low memory devices, it's possible to record
-only 1/4 of positive voltage wave. But we had no so beg restrictions, and
+only 1/4 of positive voltage wave. But we had no so big restrictions, and
 recorded full wave (both voltage and current) for simplicity.
 
+Also, you may have overflow with fixed point math. Since performance is not
+critical with recorded data, using `float` types is preferable.
 
-### Motor's inductance (L) calibration.
+
+### Motor's inductance (L) calibration
 
 When resistance was determined, inductance can be calculated at any
 point by this formula:
@@ -76,19 +79,21 @@ Since derivative of current can be noizy, it worth to use median filter.
   - may be worth to drop points when derivative is close to zero.
 
 
-### Motor's speed scale calibration.
+### Motor's speed scale calibration
 
 That depends on konstructive coefficient K of motor. In real world everything is
 very simple. "Speed sensor" should produce data in desired range. In our case,
 that's [0..1]. Do this sequence:
 
 - Reset scaling factor in "sensor" module (set to `1.0`).
-- Run motor at mahimum speed (gently rise triac phase  in 1-3 seconds,
-  until detected speed stop increase).
+- Run motor at maximal speed (set triac phase to 100% and wait
+  until detected speed became stable).
+  - You may wish to emulate soft start for convenience - increase phase from 0
+    to 100% in 2-3 seconds, instead of setting to 100% immediately.
 - Measure "speed" and use this value as new scaling factor.
 
-For our 180W grinder scaling factor is ~ 600. For any other motors it will fit
-in [300..2000] range.
+For our 180W grinder, scaling factor is ~ 600. For any other motors it should
+fit in [300..2000] range.
 
 
 ## Data flow
