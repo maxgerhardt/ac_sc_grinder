@@ -38,7 +38,6 @@ public:
       cal_rl_buffer_head = 0;
       last_positive_element = 0;
 
-      triacDriver.voltage = voltage;
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
@@ -49,7 +48,6 @@ public:
     // Calibration should be started at the begining of positive period
     case WAIT_ZERO_CROSS:
 
-      triacDriver.voltage = voltage;
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
@@ -61,7 +59,6 @@ public:
     // until current crosses zero.
     case MEASURE:
       // turn on triac
-      triacDriver.voltage = voltage;
       triacDriver.setpoint = fix16_one;
       triacDriver.tick();
 
@@ -97,7 +94,6 @@ public:
       {
         set_state(CALCULATE);
 
-        triacDriver.voltage = voltage;
         triacDriver.setpoint = 0;
         triacDriver.tick();
       }

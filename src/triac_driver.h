@@ -14,30 +14,24 @@
 class TriacDriver
 {
 public:
+  TriacDriver(Sensors sensors) {
+    sensors_ptr = &sensors;
+  }
   // 0..100% of desired triac "power".
   // Will be used to calculate opening phase for each half sine wave
   fix16_t setpoint = 0;
-  fix16_t voltage = 0;
-
-  // Reference to sensors, for "reactive" update of triac state info
-  Sensors *ref_sensors = nullptr;
 
   // 40 kHz
   void tick()
   {
     // Poor man zero cross check
-    if (((prev_voltage == 0) && (voltage > 0)) ||
-        ((prev_voltage > 0) && (voltage == 0)))
-    {
-      rearm();
-    }
+    if (sensors_ptr->zero_cross_up || sensors_ptr->zero_cross_up) rearm();
 
     // If period_in_ticks is not yet detected, only increment phase_counter,
     // don't touch triac.
     if (!once_period_counted)
     {
       phase_counter++;
-      prev_voltage = voltage;
       return;
     }
 
@@ -81,10 +75,12 @@ public:
     }
 
     phase_counter++;
-    prev_voltage = voltage;
   }
 
 private:
+  // Reference to sensors, for "reactive" update of triac state info
+  Sensors *sensors_ptr;
+
   uint32_t phase_counter = 0; // increment every tick
   bool triac_open_done = false;
   bool triac_close_done = false;
@@ -92,15 +88,13 @@ private:
   // Holds measured number of ticks per positive half-period
   uint32_t positive_period_in_ticks = 0;
 
-  fix16_t prev_voltage = 0;
-
   bool once_zero_crossed = false;
   bool once_period_counted = false;
 
   // Helpers to switch triac and update related data.
   void inline triac_ignition_on() {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-    if (ref_sensors != nullptr) ref_sensors->in_triac_on = true;
+    sensors_ptr->in_triac_on = true;
   }
   void inline triac_ignition_off() {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
@@ -119,7 +113,7 @@ private:
     if (once_period_counted)
     {
       // Measure period on positive half wave only
-      if (voltage == 0) positive_period_in_ticks = phase_counter;
+      if (sensors_ptr->zero_cross_down) positive_period_in_ticks = phase_counter;
     }
 
     phase_counter = 0;
@@ -130,7 +124,7 @@ private:
     // immediately after triac enabled
     triac_ignition_off();
 
-    if (ref_sensors != nullptr) ref_sensors->in_triac_on = false;
+    sensors_ptr->in_triac_on = false;
   }
 };
 

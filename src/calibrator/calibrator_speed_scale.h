@@ -38,7 +38,6 @@ public:
         fix16_from_int(ticks_cnt * 100 / calibrator_motor_startup_ticks),
         F16(100)
       );
-      triacDriver.voltage = sensors.voltage;
       triacDriver.setpoint = setpoint;
       triacDriver.tick();
 
@@ -50,7 +49,6 @@ public:
     // Wait until speed deviation < 3% in 0.2 sec
     case MEASURE:
       // Continue run at max speed
-      triacDriver.voltage = sensors.voltage;
       triacDriver.setpoint = fix16_one;
       triacDriver.tick();
 
@@ -81,7 +79,6 @@ public:
 
     // Motor off and wait 1 sec
     case STOP:
-      triacDriver.voltage = sensors.voltage;
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
