@@ -17,7 +17,7 @@ extern TriacDriver triacDriver;
 // I theory, we it would be enougth to save ~ 1/8 of voltage positive wave,
 // and calc the rest on the fly. That will save a lot of memory, but we have
 // no time for such optimization.
-#define CALIBRATOR_RL_BUFFER_LENGTH (APP_TICK_FREQUENCY / 50)
+constexpr int calibrator_rl_buffer_length = APP_TICK_FREQUENCY / 50;
 
 
 class CalibratorRL
@@ -50,12 +50,13 @@ public:
     // Calibration should be started at the begining of positive period
     case WAIT_ZERO_CROSS:
 
-      if ((prev_voltage == 0) && (voltage > 0))
-      {
-        set_state(MEASURE);
-      }
+      triacDriver.voltage = voltage;
+      triacDriver.setpoint = 0;
+      triacDriver.tick();
 
-    break;
+      if ((prev_voltage == 0) && (voltage > 0)) set_state(MEASURE);
+
+      break;
 
     // Save voltage and current data to buffers
     // until current crosses zero.
@@ -89,7 +90,7 @@ public:
       current_buffer[cal_rl_buffer_head] = current;
 
       // Protection from buffers overflow
-      if (cal_rl_buffer_head < CALIBRATOR_RL_BUFFER_LENGTH) cal_rl_buffer_head++;
+      if (cal_rl_buffer_head < calibrator_rl_buffer_length) cal_rl_buffer_head++;
 
       // Stop saving data when current crosses zero,
       // turn off triac
@@ -102,7 +103,7 @@ public:
         triacDriver.tick();
       }
 
-    break;
+      break;
 
     // Calculate resistance and inductance of motor
     case CALCULATE:
@@ -129,9 +130,8 @@ public:
       sensors.configure();
 
       set_state(INIT);
-      return true;
 
-    break;
+      return true;
     }
 
     prev_voltage = voltage;
@@ -145,8 +145,8 @@ private:
   fix16_t prev_voltage = 0;
   fix16_t prev_current = 0;
 
-  fix16_t voltage_buffer[CALIBRATOR_RL_BUFFER_LENGTH];
-  fix16_t current_buffer[CALIBRATOR_RL_BUFFER_LENGTH];
+  fix16_t voltage_buffer[calibrator_rl_buffer_length];
+  fix16_t current_buffer[calibrator_rl_buffer_length];
 
   // Holds head of voltage and current buffers
   uint32_t cal_rl_buffer_head = 0;
