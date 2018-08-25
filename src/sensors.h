@@ -26,6 +26,11 @@ public:
   fix16_t current = 0;
   fix16_t knob = 0; // Speed knob physical value, 0..1
 
+  // Flags to simplify checks in other modules.
+  // true on zero cross up/down, false in all other ticks
+  bool zero_cross_up = false;
+  bool zero_cross_down = false;
+
   // Config info
   fix16_t cfg_shunt_resistance_inv;
   fix16_t cfg_motor_resistance;
@@ -40,12 +45,17 @@ public:
   // Should be called with 40kHz frequency
   void tick()
   {
+    if (prev_voltage == 0 && voltage > 0) zero_cross_up = true;
+    else zero_cross_up = false;
+
+    if (prev_voltage > 0 && voltage == 0) zero_cross_down = true;
+    else zero_cross_down = false;
+
     // Do preliminary filtering of raw data + normalize result
     fetch_adc_data();
 
     // Poor man zero cross check (both up and down)
-    if (((prev_voltage == 0) && (voltage > 0)) ||
-        ((prev_voltage > 0) && (voltage == 0)))
+    if (zero_cross_up || zero_cross_down)
     {
       if (once_zero_crossed) once_period_counted = true;
 
@@ -257,11 +267,11 @@ private:
         - fix16_div(fix16_mul(cfg_motor_inductance, di_dt), current);
 
       fix16_t _spd_single = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
-      
+
       median_speed_filter.add(_spd_single);
     }
 
-    if ((prev_voltage > 0) && (voltage == 0))
+    if (zero_cross_down)
     {
       // Now we are at negative wave, update [normalized] speed
       speed = median_speed_filter.result();

@@ -34,7 +34,6 @@ public:
 
     // Reset variables and wait 1 second to make sure motor stopped.
     case INIT:
-      prev_voltage = 0;
       prev_current = 0;
       cal_rl_buffer_head = 0;
       last_positive_element = 0;
@@ -54,7 +53,7 @@ public:
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
-      if ((prev_voltage == 0) && (voltage > 0)) set_state(MEASURE);
+      if (sensors.zero_cross_up) set_state(MEASURE);
 
       break;
 
@@ -69,7 +68,7 @@ public:
       // When negative half-wave of voltage begins,
       // save buffer head to use in extrapolation
       // of negative voltage values.
-      if ((prev_voltage > 0) && (voltage == 0))
+      if (sensors.zero_cross_down)
       {
         last_positive_element = cal_rl_buffer_head;
       }
@@ -134,7 +133,6 @@ public:
       return true;
     }
 
-    prev_voltage = voltage;
     prev_current = current;
 
     return false;
@@ -142,7 +140,6 @@ public:
 
 private:
 
-  fix16_t prev_voltage = 0;
   fix16_t prev_current = 0;
 
   fix16_t voltage_buffer[calibrator_rl_buffer_length];
