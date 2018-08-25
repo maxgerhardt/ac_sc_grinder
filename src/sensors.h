@@ -247,8 +247,9 @@ private:
     //
     // - skip couple of ticks after triac on
     // - skip everything after voltage become negative (become zero in our case)
-    //
-    if ((triac_on_counter > 3) && (voltage > 0))
+    // - skip everything before middle of half-period to avoid measurement while
+    //   negative current from previous period flows.
+    if ((triac_on_counter > 3) && (voltage > 0) && (phase_counter >= period_in_ticks / 2))
     {
       fix16_t di_dt = (current - prev_current) * APP_TICK_FREQUENCY;
       fix16_t r_ekv = fix16_div(voltage, current)

@@ -4,6 +4,8 @@
 // Run motor at max speed and measure speed scaling factor.
 // Max speed should have 1.0 at sensorss output.
 
+#include <math.h>
+
 #include "../fix16_math/fix16_math.h"
 
 #include "../app.h"
@@ -58,7 +60,7 @@ public:
         // motors, and less for more powerful (but > 100 anyway)
         int current_speed = fix16_to_int(sensors.speed);
 
-        if ((current_speed - prev_speed) * 100 / current_speed < 3)
+        if (abs(current_speed - prev_speed) * 100 / current_speed < 3)
         {
           // Speed deviation < 3% => max speed reached!
           // Save data to EEPROM and update sensors config
