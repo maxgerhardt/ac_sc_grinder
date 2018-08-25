@@ -20,11 +20,10 @@ Now let's check real world data (see `/data` folder). It's very noisy. We used
 this approach:
 
 - Calculate speed only since triac on and until voltage > 0
-- For each result, drop speed if it's far from [0..1]
-- Take mean from the rest.
-
-That seems to work. But it may be worth to replace mean with median or
-truncated mean for sure.
+- Triac current is shifted. On full power, at start of positive voltage wave we
+  steel observe triac's tail from previous period. Just drop data from first
+  50% of positive wave for sure.
+- Apply median filter.
 
 
 ## Autocalibration
