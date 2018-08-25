@@ -30,17 +30,24 @@ public:
     s_eraseinit.NbPages     = num;
     uint32_t page_error = 0;
 
+    HAL_FLASH_Unlock();
     HAL_FLASHEx_Erase(&s_eraseinit, &page_error);
+    HAL_FLASH_Lock();
   }
 
   static void save(int page, const void* ptr) {
     uint16_t *p_src = (uint16_t *)ptr;
     uint16_t *p_dst = (uint16_t *)(FLASH_BASE + page * PageSize);
 
-    for (int i = 0; i < PageSize / 2; i++) {
+    HAL_FLASH_Unlock();
+
+    for (int i = 0; i < PageSize / 2; i++)
+    {
       if (p_src[i] == p_dst[i]) continue;
       HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, FLASH_BASE + page * PageSize + i * 2, p_src[i]);
     }
+
+    HAL_FLASH_Lock();
   }
 };
 
