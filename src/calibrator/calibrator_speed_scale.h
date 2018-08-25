@@ -60,7 +60,7 @@ public:
         // motors, and less for more powerful (but > 100 anyway)
         int current_speed = fix16_to_int(sensors.speed);
 
-        if (abs(current_speed - prev_speed) * 100 / current_speed < 3)
+        if (abs(current_speed - prev_speed) * 100 / current_speed < 1)
         {
           // Speed deviation < 3% => max speed reached!
           // Save data to EEPROM and update sensors config
