@@ -4,8 +4,6 @@
 // Run motor at max speed and measure speed scaling factor.
 // Max speed should have 1.0 at sensorss output.
 
-#include <math.h>
-
 #include "../fix16_math/fix16_math.h"
 
 #include "../app.h"

@@ -38,9 +38,6 @@ public:
       return false;
 
     case CALIBRATE_RL:
-      // temporary, skip this step
-      set_state(CALIBRATE_SPEED_SCALE); return true;
-
       if (calibrate_rl.tick()) set_state(CALIBRATE_SPEED_SCALE);
       return true;
 

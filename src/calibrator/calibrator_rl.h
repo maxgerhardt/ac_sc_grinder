@@ -39,7 +39,9 @@ public:
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
-      if (ticks_cnt++ >= (1 * APP_TICK_FREQUENCY)) set_state(WAIT_ZERO_CROSS);
+      // Pause 2 sec before calibration start to be sure
+      // that motor stopped completely.
+      if (ticks_cnt++ >= (2 * APP_TICK_FREQUENCY)) set_state(WAIT_ZERO_CROSS);
 
       break;
 
@@ -56,7 +58,7 @@ public:
 
     case RECORD_POSITIVE_WAVE:
       // turn on triac
-      triacDriver.setpoint = fix16_one;
+      triacDriver.setpoint = F16(0.10);
       triacDriver.tick();
 
       // Safety check. Restart on out of bounds.
@@ -162,7 +164,7 @@ private:
     // Process L
     //
 
-    float max_current = *std::max_element(voltage_buffer, voltage_buffer + buffer_idx);
+    float max_current = *std::max_element(current_buffer, current_buffer + buffer_idx);
     float treshold = max_current * 0.1;
 
     median_filter.reset();
