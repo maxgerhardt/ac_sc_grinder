@@ -3,6 +3,9 @@
 
 // Calculates motor's R and L.
 
+#include <algorithm>
+#include <cmath>
+
 #include "../fix16_math/fix16_math.h"
 
 #include "../sensors.h"
@@ -26,17 +29,12 @@ public:
 
   bool tick(void) {
 
-    fix16_t voltage = sensors.voltage;
-    fix16_t current = sensors.current;
-    fix16_t p_sum, i2_sum, R_motor;
-
     switch (state) {
 
     // Reset variables and wait 1 second to make sure motor stopped.
     case INIT:
-      prev_current = 0;
-      cal_rl_buffer_head = 0;
-      last_positive_element = 0;
+      buffer_idx = 0;
+      zero_cross_down_offset = 0;
 
       triacDriver.setpoint = 0;
       triacDriver.tick();
@@ -51,107 +49,82 @@ public:
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
-      if (sensors.zero_cross_up) set_state(MEASURE);
+      if (!sensors.zero_cross_up) break;
 
-      break;
+      // Fall down to recording immediately, we should not miss data for this tick
+      set_state(RECORD_POSITIVE_WAVE);
 
-    // Save voltage and current data to buffers
-    // until current crosses zero.
-    case MEASURE:
+    case RECORD_POSITIVE_WAVE:
       // turn on triac
       triacDriver.setpoint = fix16_one;
       triacDriver.tick();
 
-      // When negative half-wave of voltage begins,
-      // save buffer head to use in extrapolation
-      // of negative voltage values.
-      if (sensors.zero_cross_down)
-      {
-        last_positive_element = cal_rl_buffer_head;
+      // Safety check. Restart on out of bounds.
+      if (buffer_idx >= calibrator_rl_buffer_length) {
+        set_state(INIT);
+        break;
       }
 
-      // Save positive voltage values, extrapolate
-      // negative voltage values from previously
-      // saved positive values.
-      if (voltage > 0)
-      {
-        voltage_buffer[cal_rl_buffer_head] = voltage;
-      }
-      else
-      {
-        voltage_buffer[cal_rl_buffer_head] =
-          voltage_buffer[cal_rl_buffer_head - last_positive_element];
-      }
+      voltage_buffer[buffer_idx] = fix16_to_float(sensors.voltage);
+      current_buffer[buffer_idx] = fix16_to_float(sensors.current);
 
-      current_buffer[cal_rl_buffer_head] = current;
+      buffer_idx++;
 
-      // Protection from buffers overflow
-      if (cal_rl_buffer_head < calibrator_rl_buffer_length) cal_rl_buffer_head++;
-
-      // Stop saving data when current crosses zero,
-      // turn off triac
-      if ((prev_current > 0) && (current = 0))
-      {
-        set_state(CALCULATE);
-
-        triacDriver.setpoint = 0;
-        triacDriver.tick();
+      if (sensors.zero_cross_down) {
+        zero_cross_down_offset = buffer_idx;
+        set_state(RECORD_NEGATIVE_WAVE);
       }
 
       break;
 
-    // Calculate resistance and inductance of motor
-    case CALCULATE:
+    case RECORD_NEGATIVE_WAVE:
+      // turn off triac
+      triacDriver.setpoint = 0;
+      triacDriver.tick();
 
-      // Holds active power
-      p_sum = 0;
-      // Holds square of current.
-      i2_sum = 0;
-
-      for (uint32_t i = 0; i < cal_rl_buffer_head; i++)
+      // If got enougth data (buffer ended or next zero cross found),
+      // go to data processing
+      if (sensors.zero_cross_up || buffer_idx >= calibrator_rl_buffer_length)
       {
-        p_sum += fix16_mul(voltage_buffer[i], current_buffer[i]);
-        i2_sum += fix16_mul(current_buffer[i], current_buffer[i]);
+        set_state(CALCULATE);
+        break;
       }
 
-      // Active power is equal to Joule power in this case
-      // Current^2 * R = P
-      // R = P / Current^2
-      R_motor = fix16_div(p_sum, i2_sum);
+      // Record current & emulate voltage
+      voltage_buffer[buffer_idx] = - voltage_buffer[buffer_idx - zero_cross_down_offset];
+      current_buffer[buffer_idx] = fix16_to_float(sensors.current);
 
-      eeprom_float_write(CFG_MOTOR_RESISTANCE_ADDR, fix16_to_float(R_motor));
+      buffer_idx++;
 
-      // Reload sensor's config.
-      sensors.configure();
+      break;
 
+    // Calculate resistance and inductance of motor
+    // That may take a lot of time, but we don't care about triac at this moment
+    case CALCULATE:
+      process_data();
       set_state(INIT);
 
       return true;
     }
-
-    prev_current = current;
 
     return false;
   }
 
 private:
 
-  fix16_t prev_current = 0;
+  float voltage_buffer[calibrator_rl_buffer_length];
+  float current_buffer[calibrator_rl_buffer_length];
 
-  fix16_t voltage_buffer[calibrator_rl_buffer_length];
-  fix16_t current_buffer[calibrator_rl_buffer_length];
+  uint32_t buffer_idx = 0;
+  uint32_t zero_cross_down_offset = 0;
 
-  // Holds head of voltage and current buffers
-  uint32_t cal_rl_buffer_head = 0;
-  // Holds last element with positive voltage
-  // in buffer, used in extrapolation of
-  // negative voltage values.
-  uint32_t last_positive_element = 0;
+  MedianIteratorTemplate<float, 32> median_filter;
 
   enum State {
     INIT,
     WAIT_ZERO_CROSS,
-    MEASURE,
+    RECORD_POSITIVE_WAVE,
+    RECORD_NEGATIVE_WAVE,
     CALCULATE
   } state = INIT;
 
@@ -161,6 +134,60 @@ private:
   {
     ticks_cnt = 0;
     state = st;
+  }
+
+  void process_data()
+  {
+    //
+    // Process R
+    //
+
+    float p_sum = 0;  // active power
+    float i2_sum = 0; // square of current
+
+    for (uint32_t i = 0; i < buffer_idx; i++)
+    {
+      p_sum += voltage_buffer[i] * current_buffer[i];
+      i2_sum += current_buffer[i] * current_buffer[i];
+    }
+
+    // Active power is equal to Joule power in this case
+    // Current^2 * R = P
+    // R = P / Current^2
+    float R = p_sum / i2_sum;
+
+    eeprom_float_write(CFG_MOTOR_RESISTANCE_ADDR, R);
+
+    //
+    // Process L
+    //
+
+    float max_current = *std::max_element(voltage_buffer, voltage_buffer + buffer_idx);
+    float treshold = max_current * 0.1;
+
+    median_filter.reset();
+
+    for (uint32_t i = 1; i < buffer_idx; i++)
+    {
+      // Skip noisy data
+      if (current_buffer[i] < treshold || current_buffer[i - 1] < treshold) continue;
+
+      float di_dt = (current_buffer[i] - current_buffer[i - 1]) * APP_TICK_FREQUENCY;
+
+      if (std::abs(di_dt) < 0.05) continue;
+
+      // L = (V - R * I) / (dI/dt)
+      float _l = (voltage_buffer[i] - R * current_buffer[i]) / di_dt;
+
+      median_filter.add(_l);
+    }
+
+    float L = median_filter.result();
+
+    eeprom_float_write(CFG_MOTOR_INDUCTANCE_ADDR, L);
+
+    // Reload sensor's config.
+    sensors.configure();
   }
 };
 
