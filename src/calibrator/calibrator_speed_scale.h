@@ -16,7 +16,6 @@ extern Sensors sensors;
 extern TriacDriver triacDriver;
 
 constexpr int calibrator_motor_startup_ticks = 3 * APP_TICK_FREQUENCY;
-constexpr int clibrator_motor_measure_ticks = 0.2 * APP_TICK_FREQUENCY;
 
 class CalibratorSpeedScale
 {
@@ -27,12 +26,18 @@ public:
 
     switch (state) {
 
-    // Gently run motor at max speed, in 3 sec
-    case START:
+    case INIT:
       // Reset scaling factor
       sensors.cfg_rekv_to_speed_factor = fix16_one;
-      prev_speed = 0;
 
+      max_speed = 0;
+      median_filter.reset();
+
+      set_state(START);
+      break;
+
+    // Gently run motor at max speed, in 3 sec
+    case START:
       // Change setpoint from 0.0 to 1.0 in 3 seconds
       setpoint = fix16_div(
         fix16_from_int(ticks_cnt * 100 / calibrator_motor_startup_ticks),
@@ -46,34 +51,46 @@ public:
 
       break;
 
-    // Wait until speed deviation < 3% in 0.2 sec
+    // Wait until speed not increaze 20 consequent waves (~ 0.4s)
+    case WAIT_MAX:
+      // Continue run at max speed
+      triacDriver.setpoint = fix16_one;
+      triacDriver.tick();
+
+      if (!sensors.zero_cross_up) break;
+
+      // If current max not exceeded - count attempts
+      if (sensors.speed < max_speed) {
+        ticks_cnt++;
+        if (ticks_cnt > 20) set_state(MEASURE);
+        break;
+      }
+
+      // If new max found - reset counter and try again
+      max_speed = sensors.speed;
+      ticks_cnt = 0;
+      break;
+
     case MEASURE:
       // Continue run at max speed
       triacDriver.setpoint = fix16_one;
       triacDriver.tick();
 
-      // 0.2 secs ticked => continue on success or try again on fail.
-      if (ticks_cnt++ >= clibrator_motor_measure_ticks) {
-        // Keep only integer part, it's about 500-1000 for small
-        // motors, and less for more powerful (but > 100 anyway)
-        int current_speed = fix16_to_int(sensors.speed);
+      // Measure speed once per wave.
+      if (!sensors.zero_cross_up) break;
 
-        if (abs(current_speed - prev_speed) * 100 / current_speed < 1)
-        {
-          // Speed deviation < 3% => max speed reached!
-          // Save data to EEPROM and update sensors config
-          eeprom_float_write(CFG_REKV_TO_SPEED_FACTOR_ADDR, fix16_to_float(sensors.speed));
-          sensors.cfg_rekv_to_speed_factor = sensors.speed;
-          set_state(STOP);
-        }
-        else
-        {
-          // Speed is not stable => try again
-          set_state(MEASURE);
-          // Store value for next compare
-          prev_speed = current_speed;
-        }
-      }
+      // Collect data and count attempts
+      median_filter.add(sensors.speed);
+
+      if (ticks_cnt++ < 32) break;
+
+      // Save data to EEPROM and update sensors config
+      eeprom_float_write(
+        CFG_REKV_TO_SPEED_FACTOR_ADDR,
+        fix16_to_float(median_filter.result())
+      );
+      sensors.cfg_rekv_to_speed_factor = sensors.speed;
+      set_state(STOP);
 
       break;
 
@@ -83,7 +100,7 @@ public:
       triacDriver.tick();
 
       if (ticks_cnt++ > 1 * APP_TICK_FREQUENCY) {
-        set_state(START);
+        set_state(INIT);
         return true;
       }
 
@@ -96,15 +113,18 @@ public:
 private:
 
   enum State {
+    INIT,
     START,
+    WAIT_MAX,
     MEASURE,
     STOP
-  } state = START;
+  } state = INIT;
+
+  fix16_t max_speed = 0;
 
   int ticks_cnt = 0;
 
-  // Previous speed value to compare stability
-  int prev_speed;
+  MedianIteratorTemplate<fix16_t, 32> median_filter;
 
   void set_state(State st)
   {
