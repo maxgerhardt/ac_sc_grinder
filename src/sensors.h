@@ -45,14 +45,14 @@ public:
   // Should be called with 40kHz frequency
   void tick()
   {
+    // Do preliminary filtering of raw data + normalize result
+    fetch_adc_data();
+
     if (prev_voltage == 0 && voltage > 0) zero_cross_up = true;
     else zero_cross_up = false;
 
     if (prev_voltage > 0 && voltage == 0) zero_cross_down = true;
     else zero_cross_down = false;
-
-    // Do preliminary filtering of raw data + normalize result
-    fetch_adc_data();
 
     // Poor man zero cross check (both up and down)
     if (zero_cross_up || zero_cross_down)

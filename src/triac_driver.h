@@ -14,7 +14,7 @@
 class TriacDriver
 {
 public:
-  TriacDriver(Sensors sensors) {
+  TriacDriver(Sensors &sensors) {
     sensors_ptr = &sensors;
   }
   // 0..100% of desired triac "power".
@@ -25,7 +25,7 @@ public:
   void tick()
   {
     // Poor man zero cross check
-    if (sensors_ptr->zero_cross_up || sensors_ptr->zero_cross_up) rearm();
+    if (sensors_ptr->zero_cross_up || sensors_ptr->zero_cross_down) rearm();
 
     // If period_in_ticks is not yet detected, only increment phase_counter,
     // don't touch triac.
