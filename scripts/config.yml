@@ -16,9 +16,9 @@ schema:
       description: >
         Can be autocalibrated
       required: true
-      default: 95
-      minimum: 0
-      maximum: 200
+      default: 140
+      minimum: 1
+      maximum: 1000
 
     3:
       title: RPM at max voltage without load
@@ -96,8 +96,8 @@ schema:
       description: >
         Can be autocalibrated
       required: true
-      default: 0.17
-      minimum: 0
+      default: 0.15
+      minimum: 0.01
       maximum: 1
 
     11:
@@ -107,6 +107,6 @@ schema:
         Constructive coefficient between normalized motor speed
         and back-EMF equivalent resistance. Can be autocalibrated.
       required: true
-      default: 640
+      default: 450
       minimum: 100
       maximum: 10000

@@ -70,10 +70,13 @@ Here we reuse recorded data from previous step.
 
 **Implementation notes**
 
+See files in `/data` folders. In stopped state, motor's inductance is saturated
+very quickly. So, we use only 10% of max triac pulse to generate test signal.
+
 Since derivative of current can be noizy, it worth to use median filter.
 
-- Find max current in recorded data. Select start point when current > 10%
-  of max.
+- Find max current in recorded data. Select range with current > 10% of max.
+- Drop all points with current derivative about zero
 - Calculate inductance for each neighbour siblings and apply median filter.
   - may be worth to drop points when derivative is close to zero.
 
@@ -82,16 +85,24 @@ Since derivative of current can be noizy, it worth to use median filter.
 
 That depends on konstructive coefficient K of motor. In real world everything is
 very simple. "Speed sensor" should produce data in desired range. In our case,
-that's [0..1]. Do this sequence:
+that's [0..1]. We should find scaling factor to normalize data.
+
+Second point to keep in mind - calculated speed is VERY noizy:
+
+- Noise exists inside single voltage period (should apply median filter)
+- Noise exists BETWEEN multiple sine waves (can not be compensated on previous
+  stage). In normal mode that's smoothed by PID module. But for calibration we
+  should care "manually".
+
+SUggested algorythm is:
 
 - Reset scaling factor in "sensor" module (set to `1.0`).
-- Run motor at maximal speed (set triac phase to 100% and wait
-  until detected speed became stable).
-  - You may wish to emulate soft start for convenience - increase phase from 0
-    to 100% in 2-3 seconds, instead of setting to 100% immediately.
-- Measure "speed" and use this value as new scaling factor.
+- Smoothly speedup motor to max speed.
+- Measure speed until value not increased aynymore (search max until not changed
+  in 20 sine periods)
+- Measure speed next 32 sine waves and apply median filter.
 
-For our 180W grinder, scaling factor is ~ 600. For any other motors it should
+For our 180W grinder, scaling factor is ~ 400-500. For any other motors it should
 fit in [300..2000] range.
 
 
