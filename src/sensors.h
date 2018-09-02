@@ -17,6 +17,9 @@
   - power: calculated
   - speed: calculated
 */
+
+constexpr int voltage_buffer_length = APP_TICK_FREQUENCY / 50;
+
 class Sensors
 {
 public:
@@ -246,38 +249,62 @@ private:
   // Holds number of ticks since triac is on
   uint32_t triac_on_counter = 0;
 
-  MedianIteratorTemplate<fix16_t, 32> median_speed_filter;
+  fix16_t p_sum = 0;  // active power
+  fix16_t i2_sum = 0; // square of current
+
+  // Buffer for extrapolating voltage during negative half-wave
+  fix16_t voltage_buffer[voltage_buffer_length];
+  uint32_t voltage_buffer_head = 0;
 
   void speed_tick()
   {
     if (in_triac_on) triac_on_counter ++;
     else triac_on_counter = 0;
 
-    // We should measure speed when triac is on and data is trustable:
-    //
-    // - skip couple of ticks after triac on
-    // - skip everything after voltage become negative (become zero in our case)
-    // - skip everything before middle of half-period to avoid measurement while
-    //   negative current from previous period flows.
-    if ((triac_on_counter > 3) && (voltage > 0) && (phase_counter >= period_in_ticks / 2))
+    // Reset voltage buffer head at zero crossings
+    if ((zero_cross_down) || (zero_cross_up))
     {
-      fix16_t di_dt = (current - prev_current) * APP_TICK_FREQUENCY;
-      fix16_t r_ekv = fix16_div(voltage, current)
-        - cfg_motor_resistance
-        - fix16_div(fix16_mul(cfg_motor_inductance, di_dt), current);
-
-      fix16_t _spd_single = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
-
-      median_speed_filter.add(_spd_single);
+      voltage_buffer_head = 0;
+    }
+    
+    // Save voltage samples during positive half-wave
+    // to extrapolate during negative half-wave
+    if (voltage > 0)
+    {
+      voltage_buffer[voltage_buffer_head] = voltage;
+    }
+    
+    // Calculate sums during positive half-wave
+    if (voltage > 0)
+    {
+      p_sum += fix16_mul(voltage, current);
+      i2_sum += fix16_mul(current, current);
     }
 
-    if (zero_cross_down)
+    // During negative half-wave calculate sums
+    // with extrapolating voltage
+    if ((voltage == 0) && (current > 0))
     {
-      // Now we are at negative wave, update [normalized] speed
-      speed = median_speed_filter.result();
-      median_speed_filter.reset();
+      p_sum += fix16_mul(-voltage_buffer[voltage_buffer_head], current);
+      i2_sum += fix16_mul(current, current);
     }
+    
+    voltage_buffer_head++;
 
+    // Calculate speed at end of negative half-wave
+    // In this case active power is equivalent to
+    // Joule power, P = R * I^2
+    // R = P / I^2
+    // r_ekv is equivalent resistance created by back-EMF
+    // r_ekv = R - R_motor
+    if (zero_cross_up)
+    {
+      fix16_t r_ekv = fix16_div(p_sum, i2_sum) - cfg_motor_resistance;
+      speed = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
+     
+      p_sum = 0;
+      i2_sum = 0;
+    }
   }
 };
 
