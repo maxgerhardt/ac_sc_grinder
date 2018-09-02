@@ -9,7 +9,7 @@ __WORK IN PROGRESS !!!__
 > via Back EMF measure. Replacement for default board.
 
 Notes! Due size restrictions, it's impossible to create universal PCB.
-We prepeared PCB for `Hilda 180W` - it's very popular and cheap. Borads for
+We prepeared PCB for `Hilda 180W` - it's very popular and cheap. Boards for
 other grinder models are left to volunteers.
 
 

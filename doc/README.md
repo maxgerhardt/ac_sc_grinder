@@ -94,7 +94,7 @@ Second point to keep in mind - calculated speed is VERY noizy:
   stage). In normal mode that's smoothed by PID module. But for calibration we
   should care "manually".
 
-SUggested algorythm is:
+Suggested algorythm is:
 
 - Reset scaling factor in "sensor" module (set to `1.0`).
 - Smoothly speedup motor to max speed.
@@ -104,6 +104,27 @@ SUggested algorythm is:
 
 For our 180W grinder, scaling factor is ~ 400-500. For any other motors it should
 fit in [300..2000] range.
+
+
+### Motor's RPM/volts response linearization
+
+Motor's speed depends on volts in non linear way. That may cause problems for
+PID control. Been tuned on low speed, PID will not be optimal at oppozite side.
+Motor speed can be measured on different voltages for next corrections. That's
+not ideal but good enougth.
+
+Note, we have 2 transforms for triac phase in the end:
+
+1. DC volts (0..max) to AC phase of sine wave.
+2. Motor non-linearity compensation.
+
+For user convenience, motor's measurements can be done in parallel with speed
+scale clibration.
+
+
+### PID calibration
+
+TBD.
 
 
 ## Data flow
