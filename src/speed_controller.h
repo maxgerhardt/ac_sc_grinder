@@ -66,13 +66,13 @@ public:
         pid_speed_integral = pid_speed_out - fix16_mul((knob_normalized - in_speed), cfg_pid_p);
         limiter_active = false;
       }
-      out_power = pid_speed_out;
     }
     else
     {
       limiter_active = true;
-      out_power = pid_limiter_out;
     }
+
+    out_power = apply_rpm_voltage_compensation(pid_speed_out);
   }
 
   // Load config from emulated EEPROM
@@ -108,6 +108,23 @@ public:
       cfg_rpm_max_limit_norm - cfg_rpm_min_limit_norm,
       fix16_one - cfg_dead_zone_width_norm
     );
+
+    // Reade motor RPM <-> volts correction table (interpolation points)
+    // Note, real table has 22 points, but first and last are always 0.0 and 1.0.
+    correction_table_len = 0;
+    cfg_rpm_volts_correction_table[correction_table_len++] = 0;
+
+    for (int i = 0; i < CFG_RPM_INTERP_TABLE_LENGTH; i++)
+    {
+      cfg_rpm_volts_correction_table[correction_table_len++] = fix16_from_float(
+        eeprom_float_read(
+          i + CFG_RPM_INTERP_TABLE_START_ADDR,
+          ((float)i + 1.0) / (CFG_RPM_INTERP_TABLE_LENGTH + 1)
+        )
+      );
+    }
+
+    cfg_rpm_volts_correction_table[correction_table_len++] = fix16_one;
   }
 
 private:
@@ -125,6 +142,10 @@ private:
   // knob value normalized to range (cfg_rpm_min_limit..cfg_rpm_max_limit)
   fix16_t knob_normalized;
 
+  // Motor speed/volts characteristics is not linear.
+  // This compensation table is filled in calibration step.
+  fix16_t cfg_rpm_volts_correction_table[20];
+  int correction_table_len = 0;
 
   fix16_t pid_speed_integral = 0;
   fix16_t pid_limiter_integral = 0;
@@ -142,6 +163,25 @@ private:
       (in_knob - cfg_dead_zone_width_norm),
       knob_norm_coeff
     ) + cfg_rpm_min_limit_norm;
+  }
+
+  // Motor speed/volts characteristics is not linear. But PID expects "linear"
+  // reaction for best result. Apply compensation to "linear" input, using
+  // interpolation data from calibration step.
+  fix16_t apply_rpm_voltage_compensation(fix16_t linear_speed)
+  {
+    // Bounds check
+    if (linear_speed <= 0) return 0;
+    if (linear_speed >= fix16_one) return fix16_one;
+
+    int range_idx = (linear_speed * (correction_table_len - 1)) >> 16;
+    fix16_t scale = (linear_speed * (correction_table_len - 1)) & 0x0000FFFF;
+
+    fix16_t range_start = cfg_rpm_volts_correction_table[range_idx - 1];
+    fix16_t range_end = cfg_rpm_volts_correction_table[range_idx];
+
+    return fix16_mul(range_start, fix16_one - scale) +
+           fix16_mul(range_end, scale);
   }
 
 

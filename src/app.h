@@ -15,6 +15,11 @@
 // Currently driven by ADC for simplicity.
 #define APP_TICK_FREQUENCY 17857
 
+// "EEPROM" location and size for RPM non-linearity conmensation table.
+// Starts after other config variables.
+#define CFG_RPM_INTERP_TABLE_START_ADDR 15
+#define CFG_RPM_INTERP_TABLE_LENGTH 16
+
 
 extern void app_start();
 
