@@ -18,6 +18,9 @@
   - speed: calculated
 */
 
+// Buffer used for storage only positive half-wave values.
+// To prevent buffer overflow if supply frequency < 50 Hz
+// it's length is two 50-Hz half-waves
 constexpr int voltage_buffer_length = APP_TICK_FREQUENCY / 50;
 
 class Sensors
@@ -249,12 +252,18 @@ private:
   // Holds number of ticks since triac is on
   uint32_t triac_on_counter = 0;
 
-  fix16_t p_sum = 0;  // active power
+  fix16_t p_sum = 0;  // active power / 16
   fix16_t i2_sum = 0; // square of current
+
+  // voltage with extrapolated negative half-wave
+  fix16_t virtual_voltage;
 
   // Buffer for extrapolating voltage during negative half-wave
   fix16_t voltage_buffer[voltage_buffer_length];
   uint32_t voltage_buffer_head = 0;
+  // Holds number of ticks from the beginning of
+  // negative half-wave
+  uint32_t voltage_buffer_tick_counter = 0;
 
   void speed_tick()
   {
@@ -262,35 +271,28 @@ private:
     else triac_on_counter = 0;
 
     // Reset voltage buffer head at zero crossings
-    if ((zero_cross_down) || (zero_cross_up))
+    if (zero_cross_down) 
     {
-      voltage_buffer_head = 0;
+      voltage_buffer_tick_counter = 0;
     }
     
     // Save voltage samples during positive half-wave
     // to extrapolate during negative half-wave
     if (voltage > 0)
     {
-      voltage_buffer[voltage_buffer_head] = voltage;
+      voltage_buffer[voltage_buffer_head++] = voltage;
+      virtual_voltage = voltage;
+    }
+    else
+    {
+      virtual_voltage = -voltage_buffer[voltage_buffer_tick_counter++];
     }
     
-    // Calculate sums during positive half-wave
-    if (voltage > 0)
-    {
-      p_sum += fix16_mul(voltage, current);
-      i2_sum += fix16_mul(current, current);
-    }
-
-    // During negative half-wave calculate sums
-    // with extrapolating voltage
-    if ((voltage == 0) && (current > 0))
-    {
-      p_sum += fix16_mul(-voltage_buffer[voltage_buffer_head], current);
-      i2_sum += fix16_mul(current, current);
-    }
+    // Calculate sums
+    // To prevent p_sum overflow divide power value by 16
+    p_sum += fix16_mul(virtual_voltage, current) >> 4;
+    i2_sum += fix16_mul(current, current);
     
-    voltage_buffer_head++;
-
     // Calculate speed at end of negative half-wave
     // In this case active power is equivalent to
     // Joule power, P = R * I^2
@@ -299,11 +301,20 @@ private:
     // r_ekv = R - R_motor
     if (zero_cross_up)
     {
-      fix16_t r_ekv = fix16_div(p_sum, i2_sum) - cfg_motor_resistance;
+      // p_sum was divided by 16 to prevent overflow,
+      // so i2_sum must be divided by 16 now
+      fix16_t r_ekv = fix16_div(p_sum, i2_sum >> 4) - cfg_motor_resistance;
       speed = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
      
+      // Clamp calculated speed value, speed can't be negative
+      if (speed < 0)
+      {
+        speed = 0;
+      }
+
       p_sum = 0;
       i2_sum = 0;
+      voltage_buffer_head = 0;
     }
   }
 };
