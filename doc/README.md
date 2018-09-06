@@ -1,29 +1,23 @@
 ## Speed calculation based on back-EMF
 
-The AC commutator motor is described by the following equation:
+Power balance of the AC commutator motor is described by this equation. Integrals can be 
+replaced by sums:
 
-[![motor equation](http://mathurl.com/y8laqz5j.png)](http://mathurl.com/y8laqz5j)
+[![power balance equation](http://mathurl.com/yallc7kg.png)](http://mathurl.com/yallc7kg)
 
-- R - motor resistance in Ohm.
-- L - motor inductance in Henry.
-- K - constructive coefficient of the motor.
+R<sub>&Sigma;</sub> - equivalent summary resistance of motor circuit.
+
+Sums must be calculated from one zero-crossing of current to next zero-crossing of current.
 
 The motor speed can be calculated as follows:
 
-[![motor speed formula](http://mathurl.com/ya6as6mp.png)](http://mathurl.com/ya6as6mp)
+[![motor speed formula](http://mathurl.com/y7m5ccnq.png)](http://mathurl.com/y7m5ccnq)
 
-R<sub>ekv</sub> - equivalent resistance which is created by the back-EMF.
+- R<sub>ekv</sub> - equivalent resistance which is created by the back-EMF.
+- R<sub>motor</sub> - motor resistance in Ohms.
+- K - constructive coefficient of the motor.
 
 __The motor speed is proportional to the R<sub>ekv</sub>.__
-
-Now let's check real world data (see `/data` folder). It's very noisy. We used
-this approach:
-
-- Calculate speed only since triac on and until voltage > 0
-- Triac current is shifted. On full power, at start of positive voltage wave we
-  steel observe triac's tail from previous period. Just drop data from first
-  50% of positive wave for sure.
-- Apply median filter.
 
 
 ## Autocalibration
