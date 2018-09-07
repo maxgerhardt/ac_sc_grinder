@@ -97,9 +97,12 @@ public:
       eeprom_float_read(CFG_RPM_MAX_LIMIT_ADDR, CFG_RPM_MAX_LIMIT_DEFAULT) / _rpm_max
     );
 
-    cfg_rpm_min_limit_norm = fix16_from_float(
-      eeprom_float_read(CFG_RPM_MIN_LIMIT_ADDR, CFG_RPM_MIN_LIMIT_DEFAULT) / _rpm_max
-    );
+    float _rpm_min_limit = eeprom_float_read(CFG_RPM_MIN_LIMIT_ADDR, CFG_RPM_MIN_LIMIT_DEFAULT);
+    // Don't allow too small low limit
+    // ~ 3000 for 35000 max limit
+    if (_rpm_min_limit < _rpm_max * 0.085) _rpm_min_limit = _rpm_max * 0.085;
+
+    cfg_rpm_min_limit_norm = fix16_from_float(_rpm_min_limit / _rpm_max);
 
     knob_norm_coeff =  fix16_div(
       cfg_rpm_max_limit_norm - cfg_rpm_min_limit_norm,
