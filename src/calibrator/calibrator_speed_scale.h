@@ -17,6 +17,7 @@ extern SpeedController speedController;
 
 constexpr int calibrator_motor_startup_ticks = 3 * APP_TICK_FREQUENCY;
 
+
 class CalibratorSpeedScale
 {
 public:
@@ -27,26 +28,32 @@ public:
     case INIT:
       // Reset scaling factor
       sensors.cfg_rekv_to_speed_factor = fix16_one;
-      setpoint = 0;
+      setpoint = 0.05;
       setpoint_idx = 0;
 
+      measure_attempts = 0;
       set_state(START_MEASURE);
 
     // Calc next setpoint & reset local vars
     case START_MEASURE:
-      // Change setpoint from 0.0 to 1.0 and measure speed on each
-      // step = 1/32 for [0..0.375]
-      // step = 1/16 for [0.375..1.0]
+
+      // Change setpoint from 0.0 to 1.0 and measure speed on each step.
+      //
+      // - step is not linear for optimal balance between speed and precision.
+      // - some initial values are skipped, because useless anyway.
+
+      if (setpoint < F16(0.2)) setpoint += F16(1.0/64);
       if (setpoint < F16(0.375)) setpoint += F16(1.0/32);
-      else setpoint += F16(1.0/12);
+      else setpoint += F16(1.0/8);
 
       if (setpoint > fix16_one) setpoint = fix16_one; // clamp overflow
 
       triacDriver.setpoint = setpoint;
 
       // Init local iteration vars.
-      max_speed = 0;
+      speed_log[2] = fix16_minimum; // prevent false positives without data
       median_filter.reset();
+      measure_attempts = 0;
 
       set_state(WAIT_STABLE_SPEED);
 
@@ -57,42 +64,41 @@ public:
 
       if (!sensors.zero_cross_up) break;
 
-      // If current max not exceeded - count attempts
-      if (sensors.speed < max_speed) {
-        ticks_cnt++;
-        if (ticks_cnt > 16) set_state(MEASURE);
-        break;
-      }
-
-      // If new max found - reset counter and try again
-      max_speed = sensors.speed;
-      ticks_cnt = 0;
-      break;
-
-    // Measure speed and record tuple { setpoint, speed },
-    // then repeat if 1.0 not reached
-    case MEASURE:
-      triacDriver.tick();
-
-      // Measure speed once per wave.
-      if (!sensors.zero_cross_up) break;
-
-      // Collect data and count attempts
       median_filter.add(sensors.speed);
+      ticks_cnt++;
 
-      if (ticks_cnt++ < 32) break;
+      // ~ 0.25s
+      if (ticks_cnt >= 12)
+      {
+        speed_log_push(median_filter.result());
 
-      // Save setpoint data
-      setpoints[setpoint_idx] = setpoint;
-      rpms[setpoint_idx] = median_filter.result();
-      setpoint_idx++;
+        // if sepeed stable OR waited > 3 sec => record data
+        if (is_speed_stable() || measure_attempts > 13)
+        {
+          // Save setpoint data
+          setpoints[setpoint_idx] = setpoint;
+          rpms[setpoint_idx] = median_filter.result();
+          setpoint_idx++;
 
-      if (setpoint < fix16_one) {
-        // if max not reached - repeat cycle
-        set_state(START_MEASURE);
+          // End reached => go to processing
+          if (setpoint >= fix16_one)
+          {
+            set_state(CALCULATE);
+            break;
+          }
+
+          // Start with next setpoint
+          set_state(START_MEASURE);
+        }
+
+        // Init for next measure attempt
+        ticks_cnt = 0;
+        median_filter.reset();
+
         break;
       }
-      set_state(CALCULATE);
+
+      break;
 
     case CALCULATE:
       scale_factor = median_filter.result(); // last result => max RPMs at 1.0
@@ -171,7 +177,6 @@ private:
     INIT,
     START_MEASURE,
     WAIT_STABLE_SPEED,
-    MEASURE,
     CALCULATE,
     STOP
   } state = INIT;
@@ -179,6 +184,10 @@ private:
   int ticks_cnt = 0;
   fix16_t max_speed = 0;
   fix16_t setpoint = 0;
+
+  // History of measured speed. Used to detect stable values.
+  fix16_t speed_log[3] = { 0, 0, fix16_minimum };
+  int measure_attempts = 0;
 
   // We use ~20 intervals to collect rpm/volts
   // Reserve a bit more to skip bounds checks
@@ -194,6 +203,23 @@ private:
   {
     state = st;
     ticks_cnt = 0;
+  }
+
+  bool is_speed_stable()
+  {
+    fix16_t a = speed_log[0], b = speed_log[1], c = speed_log[2];
+
+    fix16_t min = (a <= b && a <= c) ? a : ((b <= a && b <= c) ? b : c);
+    fix16_t max = (a >= b && a >= c) ? a : ((b >= a && b >= c) ? b : c);
+
+    return ((max - min) <= (max / 100));
+  }
+
+  void speed_log_push(fix16_t val)
+  {
+    speed_log[0] = speed_log[1];
+    speed_log[1] = speed_log[2];
+    speed_log[2] = val;
   }
 };
 
