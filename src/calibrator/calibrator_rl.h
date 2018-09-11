@@ -45,13 +45,33 @@ public:
 
       break;
 
-    // Calibration should be started at the begining of positive period
     case WAIT_ZERO_CROSS:
-
-      triacDriver.setpoint = 0;
       triacDriver.tick();
 
       if (!sensors.zero_cross_up) break;
+
+      set_state(RECORD_CURRENT);
+
+      break;
+
+    case RECORD_CURRENT:
+      triacDriver.tick();
+
+      current_buffer[buffer_idx++] = fix16_to_float(sensors.current);
+
+      if (!sensors.zero_cross_up) break;
+
+      process_thresholds();
+
+      buffer_idx = 0;
+      set_state(WAIT_ZERO_CROSS_2);
+      break;
+
+    // Calibration should be started at the begining of positive period
+    case WAIT_ZERO_CROSS_2:
+
+      triacDriver.tick();
+
 
       // Fall down to recording immediately, we should not miss data for this tick
       set_state(RECORD_POSITIVE_WAVE);
@@ -117,6 +137,8 @@ private:
   float voltage_buffer[calibrator_rl_buffer_length];
   float current_buffer[calibrator_rl_buffer_length];
 
+  float i_avg = 0;
+
   uint32_t buffer_idx = 0;
   uint32_t zero_cross_down_offset = 0;
 
@@ -125,6 +147,8 @@ private:
   enum State {
     INIT,
     WAIT_ZERO_CROSS,
+    RECORD_CURRENT,
+    WAIT_ZERO_CROSS_2,
     RECORD_POSITIVE_WAVE,
     RECORD_NEGATIVE_WAVE,
     CALCULATE
@@ -136,6 +160,21 @@ private:
   {
     ticks_cnt = 0;
     state = st;
+  }
+
+  // Calculate thresolds for current and power to drop noise in speed sensor
+  void process_thresholds()
+  {
+    float i_sum = 0;
+
+    for (uint i = 0; i < buffer_idx; i++) i_sum += current_buffer[i];
+
+    i_avg = i_sum / buffer_idx;
+
+    sensors.cfg_current_offset = fix16_from_float(i_avg);
+
+    // TODO: remove magical constant
+    sensors.cfg_min_power_treshold = fix16_from_float(i_avg * 220 * 4);
   }
 
   void process_data()

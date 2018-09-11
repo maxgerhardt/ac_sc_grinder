@@ -44,6 +44,10 @@ public:
   fix16_t cfg_motor_inductance;
   fix16_t cfg_rekv_to_speed_factor;
 
+  // Calibration params. Non needed on real work
+  fix16_t cfg_min_power_treshold = 0;
+  fix16_t cfg_current_offset = 0;
+
   // Input from triac driver to reflect triac state. Needed for speed measure
   // to drop noise. Autoupdated by triac driver.
   bool in_triac_on = false;
@@ -223,6 +227,10 @@ private:
       v_ref
     );
 
+    // Compensate current offset
+    current -= cfg_current_offset;
+    if (current < 0) current = 0;
+
     // resistors in voltage divider - [ 2*150 kOhm, 1.5 kOhm ]
     // (divider ratio => 201)
     // voltage = adc_voltage * v_ref * (301.5 / 1.5);
@@ -271,11 +279,11 @@ private:
     else triac_on_counter = 0;
 
     // Reset voltage buffer head at zero crossings
-    if (zero_cross_down) 
+    if (zero_cross_down)
     {
       voltage_buffer_tick_counter = 0;
     }
-    
+
     // Save voltage samples during positive half-wave
     // to extrapolate during negative half-wave
     if (voltage > 0)
@@ -287,12 +295,12 @@ private:
     {
       virtual_voltage = -voltage_buffer[voltage_buffer_tick_counter++];
     }
-    
+
     // Calculate sums
     // To prevent p_sum overflow divide power value by 16
     p_sum += fix16_mul(virtual_voltage, current) >> 4;
     i2_sum += fix16_mul(current, current);
-    
+
     // Calculate speed at end of negative half-wave
     // In this case active power is equivalent to
     // Joule power, P = R * I^2
@@ -305,12 +313,12 @@ private:
       // so i2_sum must be divided by 16 now
       fix16_t r_ekv = fix16_div(p_sum, i2_sum >> 4) - cfg_motor_resistance;
       speed = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
-     
+
+      // Attempt to drop noise on calibration phase
+      if ((fix16_t)(p_sum / voltage_buffer_head) < cfg_min_power_treshold) speed = 0;
+
       // Clamp calculated speed value, speed can't be negative
-      if (speed < 0)
-      {
-        speed = 0;
-      }
+      if (speed < 0) speed = 0;
 
       p_sum = 0;
       i2_sum = 0;
