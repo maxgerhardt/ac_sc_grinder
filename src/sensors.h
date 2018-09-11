@@ -315,7 +315,7 @@ private:
       speed = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
 
       // Attempt to drop noise on calibration phase
-      if ((fix16_t)(p_sum / voltage_buffer_head) < cfg_min_power_treshold) speed = 0;
+      if (p_sum / (int)voltage_buffer_head < cfg_min_power_treshold) speed = 0;
 
       // Clamp calculated speed value, speed can't be negative
       if (speed < 0) speed = 0;

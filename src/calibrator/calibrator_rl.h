@@ -50,16 +50,18 @@ public:
 
       if (!sensors.zero_cross_up) break;
 
-      set_state(RECORD_CURRENT);
+      set_state(RECORD_NOIZE);
 
       break;
 
-    case RECORD_CURRENT:
+    case RECORD_NOIZE:
       triacDriver.tick();
 
-      current_buffer[buffer_idx++] = fix16_to_float(sensors.current);
+      voltage_buffer[buffer_idx] = fix16_to_float(sensors.voltage);
+      current_buffer[buffer_idx] = fix16_to_float(sensors.current);
+      buffer_idx++;
 
-      if (!sensors.zero_cross_up) break;
+      if (!sensors.zero_cross_down) break;
 
       process_thresholds();
 
@@ -147,7 +149,7 @@ private:
   enum State {
     INIT,
     WAIT_ZERO_CROSS,
-    RECORD_CURRENT,
+    RECORD_NOIZE,
     WAIT_ZERO_CROSS_2,
     RECORD_POSITIVE_WAVE,
     RECORD_NEGATIVE_WAVE,
@@ -166,15 +168,17 @@ private:
   void process_thresholds()
   {
     float i_sum = 0;
+    float p_sum = 0;
 
-    for (uint i = 0; i < buffer_idx; i++) i_sum += current_buffer[i];
+    for (uint i = 0; i < buffer_idx; i++)
+    {
+      i_sum += current_buffer[i];
+      p_sum += voltage_buffer[i] * current_buffer[i];
+    }
 
-    i_avg = i_sum / buffer_idx;
-
-    sensors.cfg_current_offset = fix16_from_float(i_avg);
-
-    // TODO: remove magical constant
-    sensors.cfg_min_power_treshold = fix16_from_float(i_avg * 220 * 4);
+    sensors.cfg_current_offset = fix16_from_float(i_sum / buffer_idx);
+    // Set power treshold 4x of noise value
+    sensors.cfg_min_power_treshold = fix16_from_float(p_sum * 4 / buffer_idx);
   }
 
   void process_data()
