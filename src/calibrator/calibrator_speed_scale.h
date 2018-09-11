@@ -212,7 +212,12 @@ private:
     fix16_t min = (a <= b && a <= c) ? a : ((b <= a && b <= c) ? b : c);
     fix16_t max = (a >= b && a >= c) ? a : ((b >= a && b >= c) ? b : c);
 
-    return ((max - min) <= (max / 100));
+    fix16_t diff = max - min;
+
+    fix16_t abs_max = max > 0 ? max : - max;
+    fix16_t abs_diff = diff > 0 ? diff : - diff;
+
+    return abs_diff <= abs_max / 100;
   }
 
   void speed_log_push(fix16_t val)
