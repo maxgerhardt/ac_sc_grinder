@@ -234,8 +234,7 @@ private:
     // resistors in voltage divider - [ 2*150 kOhm, 1.5 kOhm ]
     // (divider ratio => 201)
     // voltage = adc_voltage * v_ref * (301.5 / 1.5);
-    voltage = fix16_mul(fix16_mul(adc_voltage << 4, v_ref), F16(301.5/1.5));
-
+    voltage = fix16_mul(adc_voltage << 4, v_ref) * 201;
   }
 
   // Holds number of tick when voltage crosses zero
