@@ -42,9 +42,9 @@ public:
       // - step is not linear for optimal balance between speed and precision.
       // - some initial values are skipped, because useless anyway.
 
-      if (setpoint < F16(0.2)) setpoint += F16(1.0/64);
-      if (setpoint < F16(0.375)) setpoint += F16(1.0/32);
-      else setpoint += F16(1.0/8);
+      if (setpoint < F16(0.2)) setpoint += F16(0.015625); // 1/64
+      if (setpoint < F16(0.375)) setpoint += F16(0.03125); // 1/32
+      else setpoint += F16(0.125); // 1/8
 
       if (setpoint > fix16_one) setpoint = fix16_one; // clamp overflow
 
@@ -73,7 +73,7 @@ public:
         speed_log_push(median_filter.result());
 
         // if sepeed stable OR waited > 3 sec => record data
-        if (is_speed_stable() || measure_attempts > 13)
+        if (sensors.speed == 0 || is_speed_stable() || measure_attempts > 13)
         {
           // Save setpoint data
           setpoints[setpoint_idx] = setpoint;
