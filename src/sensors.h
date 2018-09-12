@@ -260,7 +260,7 @@ private:
   // Holds number of ticks since triac is on
   uint32_t triac_on_counter = 0;
 
-  fix16_t p_sum = 0;  // active power / 16
+  fix16_t p_sum_div_16 = 0;  // active power / 16
   fix16_t i2_sum = 0; // square of current
 
   // voltage with extrapolated negative half-wave
@@ -298,7 +298,7 @@ private:
 
     // Calculate sums
     // To prevent p_sum overflow divide power value by 16
-    p_sum += fix16_mul(virtual_voltage, current) >> 4;
+    p_sum_div_16 += fix16_mul(virtual_voltage, current) >> 4;
     i2_sum += fix16_mul(current, current);
 
     // Calculate speed at end of negative half-wave
@@ -311,16 +311,16 @@ private:
     {
       // p_sum was divided by 16 to prevent overflow,
       // so i2_sum must be divided by 16 now
-      fix16_t r_ekv = fix16_div(p_sum, i2_sum >> 4) - cfg_motor_resistance;
+      fix16_t r_ekv = fix16_div(p_sum_div_16, i2_sum >> 4) - cfg_motor_resistance;
       speed = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
 
       // Attempt to drop noise on calibration phase
-      if (p_sum / (int)voltage_buffer_head < cfg_min_power_treshold) speed = 0;
+      if (p_sum_div_16 / (int)voltage_buffer_head * 16 < cfg_min_power_treshold) speed = 0;
 
       // Clamp calculated speed value, speed can't be negative
       if (speed < 0) speed = 0;
 
-      p_sum = 0;
+      p_sum_div_16 = 0;
       i2_sum = 0;
       voltage_buffer_head = 0;
     }
