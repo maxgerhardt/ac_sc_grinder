@@ -43,7 +43,7 @@ public:
       // - some initial values are skipped, because useless anyway.
 
       if (setpoint < F16(0.2)) setpoint += F16(0.015625); // 1/64
-      if (setpoint < F16(0.375)) setpoint += F16(0.03125); // 1/32
+      else if (setpoint < F16(0.375)) setpoint += F16(0.03125); // 1/32
       else setpoint += F16(0.125); // 1/8
 
       if (setpoint > fix16_one) setpoint = fix16_one; // clamp overflow
