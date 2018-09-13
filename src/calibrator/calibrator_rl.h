@@ -80,7 +80,7 @@ public:
 
     case RECORD_POSITIVE_WAVE:
       // turn on triac
-      triacDriver.setpoint = F16(0.10);
+      triacDriver.setpoint = fix16_one;
       triacDriver.tick();
 
       // Safety check. Restart on out of bounds.
