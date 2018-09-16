@@ -57,8 +57,8 @@ public:
 
       set_state(WAIT_STABLE_SPEED);
 
-    // Wait for stable speed - measured speed should not
-    // exceed max_speed long enougth
+    // Wait for stable speed and record result.
+    // Force end if waiting too long.
     case WAIT_STABLE_SPEED:
       triacDriver.tick();
 
@@ -101,55 +101,7 @@ public:
       break;
 
     case CALCULATE:
-      scale_factor = median_filter.result(); // last result => max RPMs at 1.0
-      // Store speed scale factor and update seosons config
-      eeprom_float_write(
-        CFG_REKV_TO_SPEED_FACTOR_ADDR,
-        fix16_to_float(scale_factor)
-      );
-
-      //
-      // Generate correction table for scaled speed in [0.0..1.0] range
-      // (0.0 and 1.0 points are skipped)
-      //
-
-      // Normalize setpoints to [0.0..1.0] range
-      for (int i = 0; i < setpoint_idx; i++)
-      {
-        rpms[i] = fix16_div(rpms[i], scale_factor);
-      }
-
-      // Run down, skip first and last points
-      for (int i = CFG_RPM_INTERP_TABLE_LENGTH - 1; i >= 0; i--)
-      {
-        fix16_t rpm = fix16_from_int(i + 1) / (CFG_RPM_INTERP_TABLE_LENGTH + 1);
-
-        for (int idx = setpoint_idx - 2; idx >= 0; idx--)
-        {
-          if (rpms[idx] < rpm) // matching range found
-          {
-            // count point proportion (scale) between RPM values
-            fix16_t sc = fix16_div(
-              rpm - rpms[idx],
-              rpms[idx + 1] - rpms[idx]
-            );
-
-            // apply to setpoints interval
-            fix16_t result =
-              fix16_mul(setpoints[idx], fix16_one - sc) +
-              fix16_mul(setpoints[idx + 1], sc);
-
-            // store
-            eeprom_float_write(CFG_RPM_INTERP_TABLE_START_ADDR + i, fix16_to_float(result));
-
-            break;
-          }
-        }
-      }
-
-      // Reload new config content
-      sensors.configure();
-      speedController.configure();
+      process_data();
 
       set_state(STOP);
 
@@ -182,7 +134,6 @@ private:
   } state = INIT;
 
   int ticks_cnt = 0;
-  fix16_t max_speed = 0;
   fix16_t setpoint = 0;
 
   // History of measured speed. Used to detect stable values.
@@ -194,8 +145,6 @@ private:
   fix16_t setpoints[40];
   fix16_t rpms[40];
   int setpoint_idx = 0;
-
-  fix16_t scale_factor;
 
   MedianIteratorTemplate<fix16_t, 32> median_filter;
 
@@ -225,6 +174,59 @@ private:
     speed_log[0] = speed_log[1];
     speed_log[1] = speed_log[2];
     speed_log[2] = val;
+  }
+
+  void process_data()
+  {
+    fix16_t scale_factor = median_filter.result(); // last result => max RPMs at 1.0
+    // Store speed scale factor and update seosons config
+    eeprom_float_write(
+      CFG_REKV_TO_SPEED_FACTOR_ADDR,
+      fix16_to_float(scale_factor)
+    );
+
+    //
+    // Generate correction table for scaled speed in [0.0..1.0] range
+    // (0.0 and 1.0 points are skipped)
+    //
+
+    // Normalize setpoints to [0.0..1.0] range
+    for (int i = 0; i < setpoint_idx; i++)
+    {
+      rpms[i] = fix16_div(rpms[i], scale_factor);
+    }
+
+    // Run down, skip first and last points
+    for (int i = CFG_RPM_INTERP_TABLE_LENGTH - 1; i >= 0; i--)
+    {
+      fix16_t rpm = fix16_from_int(i + 1) / (CFG_RPM_INTERP_TABLE_LENGTH + 1);
+
+      for (int idx = setpoint_idx - 2; idx >= 0; idx--)
+      {
+        if (rpms[idx] < rpm) // matching range found
+        {
+          // count point proportion (scale) between RPM values
+          fix16_t sc = fix16_div(
+            rpm - rpms[idx],
+            rpms[idx + 1] - rpms[idx]
+          );
+
+          // apply to setpoints interval
+          fix16_t result =
+            fix16_mul(setpoints[idx], fix16_one - sc) +
+            fix16_mul(setpoints[idx + 1], sc);
+
+          // store
+          eeprom_float_write(CFG_RPM_INTERP_TABLE_START_ADDR + i, fix16_to_float(result));
+
+          break;
+        }
+      }
+    }
+
+    // Reload new config content
+    sensors.configure();
+    speedController.configure();
   }
 };
 
