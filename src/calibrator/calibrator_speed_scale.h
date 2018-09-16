@@ -194,6 +194,8 @@ private:
     for (int i = 0; i < setpoint_idx; i++)
     {
       rpms[i] = fix16_div(rpms[i], scale_factor);
+      // clamp possible overflow at high speed
+      if (rpms[i] > fix16_one) rpms[i] = fix16_one;
     }
 
     // Run down, skip first and last points
