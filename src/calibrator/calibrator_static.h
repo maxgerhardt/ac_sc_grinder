@@ -23,7 +23,7 @@ extern TriacDriver triacDriver;
 constexpr int calibrator_rl_buffer_length = APP_TICK_FREQUENCY / 50;
 
 
-class CalibratorRL
+class CalibratorStatic
 {
 public:
 

@@ -18,7 +18,7 @@ extern SpeedController speedController;
 constexpr int calibrator_motor_startup_ticks = 3 * APP_TICK_FREQUENCY;
 
 
-class CalibratorSpeedScale
+class CalibratorSpeed
 {
 public:
 
