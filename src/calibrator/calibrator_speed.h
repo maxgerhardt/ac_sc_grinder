@@ -185,11 +185,11 @@ private:
   float polynomial_coeffs[polynomial_order + 1];
 
 
-  // Calculates value of polynomial for given x and coefficients
-  float polynomial(int polynomial_power, float x, float coeffs[])
+  // Calculates polynomial for given x and coefficients (array + order)
+  float polynomial(float x, float coeffs[], int order)
   {
     float result = coeffs[0];
-    for (int i = 1; i <= polynomial_power; i++)
+    for (int i = 1; i <= order; i++)
     {
       result += pow(x, i) * coeffs[i];
     }
@@ -253,7 +253,7 @@ private:
     {
       float rpm = float(i + 1) / (CFG_RPM_INTERP_TABLE_LENGTH + 1);
       // Calculate approximated setpoint value for rpm value
-      float approximated_setpoint = polynomial(polynomial_order, rpm, polynomial_coeffs);
+      float approximated_setpoint = polynomial(rpm, polynomial_coeffs, polynomial_order);
 
       // store
       eeprom_float_write(CFG_RPM_INTERP_TABLE_START_ADDR + i, approximated_setpoint);
