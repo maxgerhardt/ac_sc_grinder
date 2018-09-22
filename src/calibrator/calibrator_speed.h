@@ -202,7 +202,7 @@ private:
 
     // Low rpm points contain noisy data,
     // so they should be reset to zero values
-    // We can't just cut this points because 
+    // We can't just cut this points because
     // polynomial has to be calculated on full
     // range of setpoint values to avoid extrapolation
     // which gives unpredictable results.
@@ -218,7 +218,7 @@ private:
       }
     }
 
-    // Reset points below reset point 
+    // Reset points below reset point
     for (int i = 0; i < reset_idx; i++)
     {
       rpms[i] = 0.0;
@@ -227,8 +227,8 @@ private:
     // Approximate measured data by polynomial
     // Find reverse polynomial - where X is rpm, Y is setpoint
     // This polynomial will allow us to calculate setpoint for given rpm
-    polyfit(polynomial_order, setpoint_idx, rpms, setpoints, polynomial_coeffs);
-    
+    polyfit(polynomial_order, rpms, setpoints, setpoint_idx, polynomial_coeffs);
+
     // Build interpolation table
     for (int i = CFG_RPM_INTERP_TABLE_LENGTH - 1; i >= 0; i--)
     {
@@ -249,68 +249,68 @@ private:
   enum { polynomial_order = 3 };
   // Order of approximation polynomial
   float polynomial_coeffs[polynomial_order + 1];
-  
-  // Function calculates approximaton polynomial coefficients
+
+  // Calculate approximaton polynomial coefficients
   // by Ordinary Least Squares method.
-  // polynomial-order - max power of polynomial element
-  // N - number of input points
-  // x - array of N x-values
-  // y - array of N y-values
-  // a - array of calculated 
-  // (polynomial_order + 1) coefficients (result)
-  void polyfit(int polynomial_order, int N, float x[], float y[], float a[])
+  //
+  // order - max power of polynomial element
+  // x - array x-values
+  // y - array y-values
+  // len - number of input points (x & y length)
+  // result - array of calculated (order + 1) coefficients (result)
+  //
+  void polyfit(int order, float x[], float y[], int len, float result[])
   {
     // Array for sums of powers of x values,
     // used in approximation algorithm
-    float sums_of_x_powers[2 * polynomial_order + 1];
+    float sums_of_x_powers[2 * order + 1];
     // Array for x^i*y sums values,
     // used in approximation algorithm
-    float sums_of_xy_powers[polynomial_order + 1];
+    float sums_of_xy_powers[order + 1];
     // Equations matrix for approximation
-    float equations_matrix[polynomial_order + 1][polynomial_order + 2];
-  
-    int n = polynomial_order;
-    for (int i = 0; i < 2 * n + 1; i++)
+    float equations_matrix[order + 1][order + 2];
+
+    for (int i = 0; i < 2 * order + 1; i++)
     {
       sums_of_x_powers[i] = 0;
-    
+
       // Calculate sums of powers of x values
-      for (int j = 0; j < N; j++)
+      for (int j = 0; j < len; j++)
       {
         sums_of_x_powers[i] += pow(x[j], i);
       }
     }
-  
-    for (int i = 0; i <= n; i++)
+
+    for (int i = 0; i <= order; i++)
     {
       // Build equations matrix from sums of powers of x values
-      for (int j = 0;j <= n; j++)
+      for (int j = 0;j <= order; j++)
       {
-        equations_matrix[i][j] = sums_of_x_powers[i + j]; 
+        equations_matrix[i][j] = sums_of_x_powers[i + j];
       }
     }
-  
-    for (int i = 0; i < n + 1; i++)
-    {    
+
+    for (int i = 0; i < order + 1; i++)
+    {
       sums_of_xy_powers[i] = 0;
       // Calculate x^i*y sums
-      for (int j=0; j < N; j++)
+      for (int j=0; j < len; j++)
       {
         sums_of_xy_powers[i] += pow(x[j], i) * y[j];
       }
     }
     // Add x^i*y sums to equations matrix
-    for (int i = 0; i <= n; i++)
+    for (int i = 0; i <= order; i++)
     {
-      equations_matrix[i][n + 1] = sums_of_xy_powers[i];
+      equations_matrix[i][order + 1] = sums_of_xy_powers[i];
     }
     // Convert equations matrix to triangular form
-    for (int i = 0; i < n; i++)            
-    {  
-      for (int k = i + 1; k < n + 1; k++)
+    for (int i = 0; i < order; i++)
+    {
+      for (int k = i + 1; k < order + 1; k++)
       {
         float t = equations_matrix[k][i] / equations_matrix[i][i];
-        for (int j = 0; j <= n + 1; j++)
+        for (int j = 0; j <= order + 1; j++)
         {
           // Eliminate elements below pivot
           equations_matrix[k][j] = equations_matrix[k][j] - t * equations_matrix[i][j];
@@ -319,21 +319,21 @@ private:
     }
     // Calculate solution values of equations
     // This values is approximation polynomial coefficients
-    for (int i = n; i >= 0; i--)                
+    for (int i = order; i >= 0; i--)
     {
       // Initialize solution value with right-hand side
       // of equation
-      a[i] = equations_matrix[i][n + 1];
-      
+      result[i] = equations_matrix[i][order + 1];
+
       // Back-substitution: substract previously
       // calculated solution values
       // multiplied by equation coefficients
-      for (int j = i + 1; j < n + 1; j++)
+      for (int j = i + 1; j < order + 1; j++)
       {
-        a[i] -= equations_matrix[i][j] * a[j];
+        result[i] -= equations_matrix[i][j] * result[j];
       }
       // Normalize solution value
-      a[i] = a[i] / equations_matrix[i][i];
+      result[i] = result[i] / equations_matrix[i][i];
     }
   }
 
