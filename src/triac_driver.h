@@ -3,7 +3,7 @@
 
 
 #include "stm32f1xx_hal.h"
-#include "fix16_math/fix16_math.h"
+#include "math/fix16_math.h"
 
 #include "sensors.h"
 

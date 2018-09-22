@@ -4,7 +4,7 @@
 // Detect when user dials knob 3 times, start calibration sequence and
 // update configuration.
 
-#include "fix16_math/fix16_math.h"
+#include "math/fix16_math.h"
 
 #include "app.h"
 #include "triac_driver.h"

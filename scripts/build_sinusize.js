@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /*
-  Build `./src/fix16_math/fix16_sinusize_table.h
+  Build `./src/math/fix16_sinusize_table.h
 */
 
 const TABLE_SIZE = 512;
@@ -44,4 +44,4 @@ ${res.join(',\n')}
 `;
 
 
-write(path.resolve(__dirname, '../src/fix16_math/fix16_sinusize_table.h'), out);
+write(path.resolve(__dirname, '../src/math/fix16_sinusize_table.h'), out);

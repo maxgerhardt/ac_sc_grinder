@@ -5,7 +5,7 @@
 
 #include "eeprom_float.h"
 #include "config_map.h"
-#include "fix16_math/fix16_math.h"
+#include "math/fix16_math.h"
 #include "median.h"
 #include "app.h"
 

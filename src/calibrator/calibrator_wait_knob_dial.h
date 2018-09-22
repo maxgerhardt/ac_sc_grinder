@@ -8,7 +8,7 @@
 // It returns `true` when dials detected, and `false` in other cases.
 
 
-#include "../fix16_math/fix16_math.h"
+#include "../math/fix16_math.h"
 
 #include "../app.h"
 #include "../sensors.h"

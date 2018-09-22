@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-#include "../fix16_math/fix16_math.h"
+#include "../math/fix16_math.h"
 
 #include "../sensors.h"
 #include "../triac_driver.h"

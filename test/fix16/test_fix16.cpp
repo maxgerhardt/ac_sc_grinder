@@ -2,7 +2,7 @@
 
 #include <unity.h>
 
-#include "../src/fix16_math/fix16_math.h"
+#include "../src/math/fix16_math.h"
 
 
 void test_fix16_div() {

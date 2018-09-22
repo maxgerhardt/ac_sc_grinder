@@ -2,7 +2,7 @@
 
 #include <unity.h>
 
-#include "../src/fix16_math/fix16_math.h"
+#include "../src/math/fix16_math.h"
 #include "../src/median.h"
 
 // samples from `/doc/data`
