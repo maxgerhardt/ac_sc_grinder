@@ -11,6 +11,8 @@
 #include "../triac_driver.h"
 #include "../speed_controller.h"
 
+#include <math.h>
+
 extern Sensors sensors;
 extern TriacDriver triacDriver;
 extern SpeedController speedController;
@@ -76,8 +78,8 @@ public:
         if (sensors.speed == 0 || is_speed_stable() || measure_attempts > 13)
         {
           // Save setpoint data
-          setpoints[setpoint_idx] = setpoint;
-          rpms[setpoint_idx] = median_filter.result();
+          setpoints[setpoint_idx] = fix16_to_float(setpoint);
+          rpms[setpoint_idx] = fix16_to_float(median_filter.result());
           setpoint_idx++;
 
           // End reached => go to processing
@@ -90,7 +92,7 @@ public:
           // Start with next setpoint
           set_state(START_MEASURE);
         }
-
+        measure_attempts++;
         // Init for next measure attempt
         ticks_cnt = 0;
         median_filter.reset();
@@ -142,8 +144,8 @@ private:
 
   // We use ~20 intervals to collect rpm/volts
   // Reserve a bit more to skip bounds checks
-  fix16_t setpoints[40];
-  fix16_t rpms[40];
+  float setpoints[40];
+  float rpms[40];
   int setpoint_idx = 0;
 
   MedianIteratorTemplate<fix16_t, 32> median_filter;
@@ -178,11 +180,11 @@ private:
 
   void process_data()
   {
-    fix16_t scale_factor = median_filter.result(); // last result => max RPMs at 1.0
+    float scale_factor = fix16_to_float(median_filter.result()); // last result => max RPMs at 1.0
     // Store speed scale factor and update seosons config
     eeprom_float_write(
       CFG_REKV_TO_SPEED_FACTOR_ADDR,
-      fix16_to_float(scale_factor)
+      scale_factor
     );
 
     //
@@ -193,42 +195,157 @@ private:
     // Normalize setpoints to [0.0..1.0] range
     for (int i = 0; i < setpoint_idx; i++)
     {
-      rpms[i] = fix16_div(rpms[i], scale_factor);
+      rpms[i] /= scale_factor;
       // clamp possible overflow at high speed
-      if (rpms[i] > fix16_one) rpms[i] = fix16_one;
+      if (rpms[i] > 1.0) rpms[i] = 1.0;
     }
 
-    // Run down, skip first and last points
+    // Low rpm points contain noisy data,
+    // so they should be reset to zero values
+    // We can't just cut this points because 
+    // polynomial has to be calculated on full
+    // range of setpoint values to avoid extrapolation
+    // which gives unpredictable results.
+    // Low rpm reset point index
+      int reset_idx = 0;
+    // Find point preseding the point with rpm >= 0.2
+    for (int i = 1; i < setpoint_idx; i++)
+    {
+      if (rpms[i] >= 0.2)
+      {
+        reset_idx = i - 1;
+        break;
+      }
+    }
+
+    // Reset points below reset point 
+    for (int i = 0; i < reset_idx; i++)
+    {
+      rpms[i] = 0.0;
+    }
+
+    // Approximate measured data by polynomial
+    // Find reverse polynomial - where X is rpm, Y is setpoint
+    // This polynomial will allow us to calculate setpoint for given rpm
+    polyfit(polynomial_order, setpoint_idx, rpms, setpoints, polynomial_coeffs);
+    
+    // Build interpolation table
     for (int i = CFG_RPM_INTERP_TABLE_LENGTH - 1; i >= 0; i--)
     {
-      fix16_t rpm = fix16_from_int(i + 1) / (CFG_RPM_INTERP_TABLE_LENGTH + 1);
+      float rpm = float(i + 1) / (CFG_RPM_INTERP_TABLE_LENGTH + 1);
+      // Calculate approximated setpoint value for rpm value
+      float approximated_setpoint = polynomial(polynomial_order, rpm, polynomial_coeffs);
 
-      for (int idx = setpoint_idx - 2; idx >= 0; idx--)
-      {
-        if (rpms[idx] < rpm) // matching range found
-        {
-          // count point proportion (scale) between RPM values
-          fix16_t sc = fix16_div(
-            rpm - rpms[idx],
-            rpms[idx + 1] - rpms[idx]
-          );
-
-          // apply to setpoints interval
-          fix16_t result =
-            fix16_mul(setpoints[idx], fix16_one - sc) +
-            fix16_mul(setpoints[idx + 1], sc);
-
-          // store
-          eeprom_float_write(CFG_RPM_INTERP_TABLE_START_ADDR + i, fix16_to_float(result));
-
-          break;
-        }
-      }
+      // store
+      eeprom_float_write(CFG_RPM_INTERP_TABLE_START_ADDR + i, approximated_setpoint);
     }
 
     // Reload new config content
     sensors.configure();
     speedController.configure();
+  }
+
+// Max order of approximation polynomial
+  enum { polynomial_order = 3 };
+  // Order of approximation polynomial
+  float polynomial_coeffs[polynomial_order + 1];
+  
+  // Function calculates approximaton polynomial coefficients
+  // by Ordinary Least Squares method.
+  // polynomial-order - max power of polynomial element
+  // N - number of input points
+  // x - array of N x-values
+  // y - array of N y-values
+  // a - array of calculated 
+  // (polynomial_order + 1) coefficients (result)
+  void polyfit(int polynomial_order, int N, float x[], float y[], float a[])
+  {
+    // Array for sums of powers of x values,
+    // used in approximation algorithm
+    float sums_of_x_powers[2 * polynomial_order + 1];
+    // Array for x^i*y sums values,
+    // used in approximation algorithm
+    float sums_of_xy_powers[polynomial_order + 1];
+    // Equations matrix for approximation
+    float equations_matrix[polynomial_order + 1][polynomial_order + 2];
+  
+    int n = polynomial_order;
+    for (int i = 0; i < 2 * n + 1; i++)
+    {
+      sums_of_x_powers[i] = 0;
+    
+      // Calculate sums of powers of x values
+      for (int j = 0; j < N; j++)
+      {
+        sums_of_x_powers[i] += pow(x[j], i);
+      }
+    }
+  
+    for (int i = 0; i <= n; i++)
+    {
+      // Build equations matrix from sums of powers of x values
+      for (int j = 0;j <= n; j++)
+      {
+        equations_matrix[i][j] = sums_of_x_powers[i + j]; 
+      }
+    }
+  
+    for (int i = 0; i < n + 1; i++)
+    {    
+      sums_of_xy_powers[i] = 0;
+      // Calculate x^i*y sums
+      for (int j=0; j < N; j++)
+      {
+        sums_of_xy_powers[i] += pow(x[j], i) * y[j];
+      }
+    }
+    // Add x^i*y sums to equations matrix
+    for (int i = 0; i <= n; i++)
+    {
+      equations_matrix[i][n + 1] = sums_of_xy_powers[i];
+    }
+    // Convert equations matrix to triangular form
+    for (int i = 0; i < n; i++)            
+    {  
+      for (int k = i + 1; k < n + 1; k++)
+      {
+        float t = equations_matrix[k][i] / equations_matrix[i][i];
+        for (int j = 0; j <= n + 1; j++)
+        {
+          // Eliminate elements below pivot
+          equations_matrix[k][j] = equations_matrix[k][j] - t * equations_matrix[i][j];
+        }
+      }
+    }
+    // Calculate solution values of equations
+    // This values is approximation polynomial coefficients
+    for (int i = n; i >= 0; i--)                
+    {
+      // Initialize solution value with right-hand side
+      // of equation
+      a[i] = equations_matrix[i][n + 1];
+      
+      // Back-substitution: substract previously
+      // calculated solution values
+      // multiplied by equation coefficients
+      for (int j = i + 1; j < n + 1; j++)
+      {
+        a[i] -= equations_matrix[i][j] * a[j];
+      }
+      // Normalize solution value
+      a[i] = a[i] / equations_matrix[i][i];
+    }
+  }
+
+  // Calculates value of polynomial for given x and coefficients
+  float polynomial(int polynomial_power, float x, float coeffs[])
+  {
+    float result = coeffs[0];
+    for (int i = 1; i <= polynomial_power; i++)
+    {
+      result += pow(x, i) * coeffs[i];
+    }
+    return result;
   }
 };
 
