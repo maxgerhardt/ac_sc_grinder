@@ -1,6 +1,6 @@
 ## Speed calculation based on back-EMF
 
-Power balance of the AC commutator motor is described by this equation. Integrals can be 
+Power balance of the AC commutator motor is described by this equation. Integrals can be
 replaced by sums:
 
 [![power balance equation](http://mathurl.com/yallc7kg.png)](http://mathurl.com/yallc7kg)
@@ -75,32 +75,7 @@ Since derivative of current can be noizy, it worth to use median filter.
   - may be worth to drop points when derivative is close to zero.
 
 
-### Motor's speed scale calibration
-
-That depends on konstructive coefficient K of motor. In real world everything is
-very simple. "Speed sensor" should produce data in desired range. In our case,
-that's [0..1]. We should find scaling factor to normalize data.
-
-Second point to keep in mind - calculated speed is VERY noizy:
-
-- Noise exists inside single voltage period (should apply median filter)
-- Noise exists BETWEEN multiple sine waves (can not be compensated on previous
-  stage). In normal mode that's smoothed by PID module. But for calibration we
-  should care "manually".
-
-Suggested algorythm is:
-
-- Reset scaling factor in "sensor" module (set to `1.0`).
-- Smoothly speedup motor to max speed.
-- Measure speed until value not increased aynymore (search max until not changed
-  in 20 sine periods)
-- Measure speed next 32 sine waves and apply median filter.
-
-For our 180W grinder, scaling factor is ~ 400-500. For any other motors it should
-fit in [300..2000] range.
-
-
-### Motor's RPM/volts response linearization
+### Motor's RPM/volts response linearization & scaling.
 
 Motor's speed depends on volts in non linear way. That may cause problems for
 PID control. Been tuned on low speed, PID will not be optimal at oppozite side.
@@ -112,8 +87,39 @@ Note, we have 2 transforms for triac phase in the end:
 1. DC volts (0..max) to AC phase of sine wave.
 2. Motor non-linearity compensation.
 
-For user convenience, motor's measurements can be done in parallel with speed
-scale clibration.
+Suggested algorythm is:
+
+- Increase triac phase with small steps and measure RPMs at each point.
+- Drop noise at start and end points.
+- Use last point value as scaling factor.
+- Apply polinom interpolation to filter local jitters.
+
+See `./data/rpms_interpolated.ods` for real data.
+
+Note about scaling factor. That depends on konstructive coefficient K of motor.
+In real world everything is very simple. "Speed sensor" should produce data in
+desired range. In our case, that's [0..1]. For our 180W grinder, scaling factor
+is ~ 400-500. For any other motors it should fit in [300..2000] range.
+
+**Implementation notes**
+
+How to detect that speed become stable:
+
+- Collect data ~ 0.25 secs & apply median filter.
+- Try 3 times and make sure difference is < 0.1%.
+- Limit total number of measurements to 3 secs (in case jitter is too big and
+  stability condition is not satisfied)
+
+How to apply polynomial interpolation:
+
+- Clamp data near and. RAW data can be a bit more than last value, due noise.
+  Restrict it.
+- Zero noise near start. Note, interpolation can NOT be used to extrapolate
+  values out of bounds. So, instead of dropping start values, set it to zeroes.
+  To simplify math, low treshold is "magical constant", determined by observing
+  real data. We take all point, while values is > 0.2, + 1 point.
+- Since we need inverse function (f(rpms) -> volts), swap X and Y coords prior
+  to apply polinom search.
 
 
 ### PID calibration
