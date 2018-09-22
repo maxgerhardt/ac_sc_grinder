@@ -5,6 +5,7 @@
 // Max speed should have 1.0 at sensorss output.
 
 #include "../math/fix16_math.h"
+#include "../math/polyfit.h"
 
 #include "../app.h"
 #include "../sensors.h"
@@ -178,6 +179,24 @@ private:
     speed_log[2] = val;
   }
 
+  // Max order of approximation polynomial
+  enum { polynomial_order = 5 };
+  // Order of approximation polynomial
+  float polynomial_coeffs[polynomial_order + 1];
+
+
+  // Calculates value of polynomial for given x and coefficients
+  float polynomial(int polynomial_power, float x, float coeffs[])
+  {
+    float result = coeffs[0];
+    for (int i = 1; i <= polynomial_power; i++)
+    {
+      result += pow(x, i) * coeffs[i];
+    }
+    return result;
+  }
+
+
   void process_data()
   {
     float scale_factor = fix16_to_float(median_filter.result()); // last result => max RPMs at 1.0
@@ -243,109 +262,6 @@ private:
     // Reload new config content
     sensors.configure();
     speedController.configure();
-  }
-
-  // Max order of approximation polynomial
-  enum { polynomial_order = 5 };
-  // Order of approximation polynomial
-  float polynomial_coeffs[polynomial_order + 1];
-
-  // Calculate approximaton polynomial coefficients
-  // by Ordinary Least Squares method.
-  //
-  // order - max power of polynomial element
-  // x - array x-values
-  // y - array y-values
-  // len - number of input points (x & y length)
-  // result - array of calculated (order + 1) coefficients (result)
-  //
-  void polyfit(int order, float x[], float y[], int len, float result[])
-  {
-    // Array for sums of powers of x values,
-    // used in approximation algorithm
-    float sums_of_x_powers[2 * order + 1];
-    // Array for x^i*y sums values,
-    // used in approximation algorithm
-    float sums_of_xy_powers[order + 1];
-    // Equations matrix for approximation
-    float equations_matrix[order + 1][order + 2];
-
-    for (int i = 0; i < 2 * order + 1; i++)
-    {
-      sums_of_x_powers[i] = 0;
-
-      // Calculate sums of powers of x values
-      for (int j = 0; j < len; j++)
-      {
-        sums_of_x_powers[i] += pow(x[j], i);
-      }
-    }
-
-    for (int i = 0; i <= order; i++)
-    {
-      // Build equations matrix from sums of powers of x values
-      for (int j = 0;j <= order; j++)
-      {
-        equations_matrix[i][j] = sums_of_x_powers[i + j];
-      }
-    }
-
-    for (int i = 0; i < order + 1; i++)
-    {
-      sums_of_xy_powers[i] = 0;
-      // Calculate x^i*y sums
-      for (int j=0; j < len; j++)
-      {
-        sums_of_xy_powers[i] += pow(x[j], i) * y[j];
-      }
-    }
-    // Add x^i*y sums to equations matrix
-    for (int i = 0; i <= order; i++)
-    {
-      equations_matrix[i][order + 1] = sums_of_xy_powers[i];
-    }
-    // Convert equations matrix to triangular form
-    for (int i = 0; i < order; i++)
-    {
-      for (int k = i + 1; k < order + 1; k++)
-      {
-        float t = equations_matrix[k][i] / equations_matrix[i][i];
-        for (int j = 0; j <= order + 1; j++)
-        {
-          // Eliminate elements below pivot
-          equations_matrix[k][j] = equations_matrix[k][j] - t * equations_matrix[i][j];
-        }
-      }
-    }
-    // Calculate solution values of equations
-    // This values is approximation polynomial coefficients
-    for (int i = order; i >= 0; i--)
-    {
-      // Initialize solution value with right-hand side
-      // of equation
-      result[i] = equations_matrix[i][order + 1];
-
-      // Back-substitution: substract previously
-      // calculated solution values
-      // multiplied by equation coefficients
-      for (int j = i + 1; j < order + 1; j++)
-      {
-        result[i] -= equations_matrix[i][j] * result[j];
-      }
-      // Normalize solution value
-      result[i] = result[i] / equations_matrix[i][i];
-    }
-  }
-
-  // Calculates value of polynomial for given x and coefficients
-  float polynomial(int polynomial_power, float x, float coeffs[])
-  {
-    float result = coeffs[0];
-    for (int i = 1; i <= polynomial_power; i++)
-    {
-      result += pow(x, i) * coeffs[i];
-    }
-    return result;
   }
 };
 
