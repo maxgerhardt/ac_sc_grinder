@@ -245,8 +245,8 @@ private:
     speedController.configure();
   }
 
-// Max order of approximation polynomial
-  enum { polynomial_order = 3 };
+  // Max order of approximation polynomial
+  enum { polynomial_order = 5 };
   // Order of approximation polynomial
   float polynomial_coeffs[polynomial_order + 1];
 
