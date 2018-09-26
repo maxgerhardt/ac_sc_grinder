@@ -109,8 +109,9 @@ public:
       fix16_one - cfg_dead_zone_width_norm
     );
 
-    // Reade motor RPM <-> volts correction table (interpolation points)
-    // Note, real table has 22 points, but first and last are always 0.0 and 1.0.
+    // Read motor RPM <-> volts correction table (interpolation points)
+    // Note, real table has (CFG_RPM_INTERP_TABLE_LENGTH + 2) points,
+    // but first and last are always 0.0 and 1.0.
     correction_table_len = 0;
     cfg_rpm_volts_correction_table[correction_table_len++] = 0;
 
@@ -144,7 +145,8 @@ private:
 
   // Motor speed/volts characteristics is not linear.
   // This compensation table is filled in calibration step.
-  fix16_t cfg_rpm_volts_correction_table[20];
+  fix16_t cfg_rpm_volts_correction_table[CFG_RPM_INTERP_TABLE_LENGTH + 2];
+
   int correction_table_len = 0;
 
   fix16_t pid_speed_integral = 0;
