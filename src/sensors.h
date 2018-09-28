@@ -41,7 +41,6 @@ public:
   fix16_t cfg_shunt_resistance_inv;
   fix16_t cfg_motor_resistance;
   fix16_t cfg_rpm_max_inv;
-  fix16_t cfg_motor_inductance;
   fix16_t cfg_rekv_to_speed_factor;
 
   // Calibration params. Non needed on real work
@@ -102,10 +101,6 @@ public:
       (eeprom_float_read(CFG_SHUNT_RESISTANCE_ADDR, CFG_SHUNT_RESISTANCE_DEFAULT)
         * 50
         / 1000)
-    );
-
-    cfg_motor_inductance = fix16_from_float(
-      eeprom_float_read(CFG_MOTOR_INDUCTANCE_ADDR, CFG_MOTOR_INDUCTANCE_DEFAULT)
     );
 
     cfg_rekv_to_speed_factor = fix16_from_float(

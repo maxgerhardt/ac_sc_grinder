@@ -1,7 +1,8 @@
 #ifndef __CALIBRATOR_RL__
 #define __CALIBRATOR_RL__
 
-// Calculates motor's R and L.
+// - Measure noise, caused by current OA offset
+// - Calculate motor's R.
 
 #include <algorithm>
 #include <cmath>
@@ -122,8 +123,8 @@ public:
 
       break;
 
-    // Calculate resistance and inductance of motor
-    // That may take a lot of time, but we don't care about triac at this moment
+    // Process collected data. That may take a lot of time, but we don't care
+    // about triac at this moment
     case CALCULATE:
       process_data();
       set_state(INIT);
@@ -202,34 +203,6 @@ private:
     float R = p_sum / i2_sum;
 
     eeprom_float_write(CFG_MOTOR_RESISTANCE_ADDR, R);
-
-    //
-    // Process L
-    //
-
-    float max_current = *std::max_element(current_buffer, current_buffer + buffer_idx);
-    float treshold = max_current * 0.1;
-
-    median_filter.reset();
-
-    for (uint32_t i = 1; i < buffer_idx; i++)
-    {
-      // Skip noisy data
-      if (current_buffer[i] < treshold || current_buffer[i - 1] < treshold) continue;
-
-      float di_dt = (current_buffer[i] - current_buffer[i - 1]) * APP_TICK_FREQUENCY;
-
-      if (std::abs(di_dt) < 0.05) continue;
-
-      // L = (V - R * I) / (dI/dt)
-      float _l = (voltage_buffer[i] - R * current_buffer[i]) / di_dt;
-
-      median_filter.add(_l);
-    }
-
-    float L = median_filter.result();
-
-    eeprom_float_write(CFG_MOTOR_INDUCTANCE_ADDR, L);
 
     // Reload sensor's config.
     sensors.configure();

@@ -22,7 +22,7 @@ __The motor speed is proportional to the R<sub>ekv</sub>.__
 
 ## Autocalibration
 
-First, we should determine motor's resistanse and inductance. That's done in
+First, we should determine motor's resistanse. That's done in
 stopped state, passing 1 pulse (positive period of sine wave) and observing
 current's behaviour.
 
@@ -51,28 +51,6 @@ recorded full wave (both voltage and current) for simplicity.
 
 Also, you may have overflow with fixed point math. Since performance is not
 critical with recorded data, using `float` types is preferable.
-
-
-### Motor's inductance (L) calibration
-
-When resistance was determined, inductance can be calculated at any
-point by this formula:
-
-[![motor inductance formula](http://mathurl.com/yaphkfos.png)](http://mathurl.com/yaphkfos)
-
-Here we reuse recorded data from previous step.
-
-**Implementation notes**
-
-See files in `/data` folders. In stopped state, motor's inductance is saturated
-very quickly. So, we use only 10% of max triac pulse to generate test signal.
-
-Since derivative of current can be noizy, it worth to use median filter.
-
-- Find max current in recorded data. Select range with current > 10% of max.
-- Drop all points with current derivative about zero
-- Calculate inductance for each neighbour siblings and apply median filter.
-  - may be worth to drop points when derivative is close to zero.
 
 
 ### Motor's RPM/volts response linearization & scaling.
