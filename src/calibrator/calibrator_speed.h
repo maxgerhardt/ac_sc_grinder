@@ -70,7 +70,7 @@ public:
         // if sepeed stable OR waited > 3 sec => record data
         if (sensors.speed == 0 || is_speed_stable() || measure_attempts > 13)
         {
-          // Save rpm value for current setpoint 
+          // Save rpm value for current setpoint
           rpms[setpoint_idx] = fix16_to_float(median_filter.result());
           setpoints[setpoint_idx] = fix16_to_float(setpoint);
           setpoint_idx++;
@@ -136,23 +136,28 @@ private:
   int measure_attempts = 0;
 
   // Set of optimal to measurement setpoint values.
-  fix16_t setpoints_preset[16] = { 1024,
-                            2048,
-                            3072,
-                            4096,
-                            5120,
-                            6144,
-                            7168,
-                            8192,
-                            9216,
-                            10240,
-                            11264,
-                            12288,
-                            13312,
-                            41984,
-                            50176,
-                            65536
-                          };
+  fix16_t setpoints_preset[18] = {
+    // ... hole
+    F16(0.046875),
+    F16(0.0625),
+    F16(0.078125),
+    F16(0.09375),
+    F16(0.109375),
+    F16(0.125),
+    F16(0.140625),
+    F16(0.15625),
+    F16(0.171875),
+    F16(0.1875),
+    F16(0.203125),
+    F16(0.234375),
+    F16(0.265625),
+    F16(0.296875),
+    F16(0.328125),
+    // ... hole
+    F16(0.65),
+    F16(0.75),
+    F16(1.0)
+  };
 
   // Array for measured setpoints values
   float setpoints[(sizeof(setpoints_preset) / sizeof(setpoints_preset[0]))];
@@ -255,7 +260,7 @@ private:
         break;
       }
     }
-  
+
     // Find first point in rpm range [0.17..0.4]
     // (for linear approximation)
     int first_linear_point = 0;
@@ -267,14 +272,14 @@ private:
         break;
       }
     }
-  
+
     // Cut points below first point in rpm range [0.17..0.4]
     for (int i = 0; i < setpoint_idx - first_linear_point; i++)
     {
       setpoints[i] = setpoints[i + first_linear_point];
       rpms[i] = rpms[i + first_linear_point];
     }
-  
+
     // Correct number of points after cut
     setpoint_idx -= first_linear_point;
 
@@ -285,7 +290,7 @@ private:
     // Linear approximation of points
     // in rpm range [0.17..0.4].
     polyfit(1, setpoints, rpms, last_linear_point - first_linear_point + 1, linear_approx_coeffs);
-  
+
     // Calculate setpoint with rpm = 0
     // with linear approximation
     rpms_approx[0] = 0.0;
@@ -295,12 +300,12 @@ private:
     // with linear approximation
     rpms_approx[1] = 0.5;
     setpoints_approx[1] = (rpms_approx[1] - linear_approx_coeffs[0]) / linear_approx_coeffs[1];
-  
+
     // Set 3 rpm and setpoint values in high-speed range to values of measured points
     rpms_approx[4] = rpms[setpoint_idx - 3];
     rpms_approx[5] = rpms[setpoint_idx - 2];
     rpms_approx[6] = rpms[setpoint_idx - 1];
-  
+
     setpoints_approx[4] = setpoints[setpoint_idx - 3];
     setpoints_approx[5] = setpoints[setpoint_idx - 2];
     setpoints_approx[6] = setpoints[setpoint_idx - 1];
@@ -324,13 +329,13 @@ private:
       scale * (setpoints_approx[5] - setpoints_approx[4]);
     float middle_point_high_rpm_limit = rpms_approx[6] -
       0.5 * scale * (setpoints_approx[6] - setpoints_approx[5]);
-    
+
     // Correct rpm value of (last - 1) point.
     if (rpms_approx[5] < middle_point_low_rpm_limit)
     {
       rpms_approx[5] = middle_point_low_rpm_limit;
     }
-  
+
     if (rpms_approx[5] > middle_point_high_rpm_limit)
     {
       rpms_approx[5] = middle_point_high_rpm_limit;
@@ -345,19 +350,19 @@ private:
     // Spline will be built on 4 points - 2 in low-speed range,
     // first point in high-speed range and helper point, calculated
     // by linear interpolation.
-  
+
     // Fill setpoints array for cubic spline calculation. Last
     // point is helper point 1/16 step forward from setpoints_approx[5].
     float spline_setpoints[] = {setpoints_approx[0], setpoints_approx[1],
       setpoints_approx[4], setpoints_approx[4] + 1.0f / 16.0f};
-    
+
     // Fill rpms array for cubic spline calculation. Last
     // point is helper point calculated by linear interpolation.
     float spline_rpms[] = {rpms_approx[0], rpms_approx[1], rpms_approx[4],
       rpms_approx[4] + scale * (1.0f / 16.0f)};
-  
+
     float spline_coeffs[4];
-    // Calculate cubic spline to interpolate in middle-speed range.  
+    // Calculate cubic spline to interpolate in middle-speed range.
     polyfit(3, spline_setpoints, spline_rpms, 4, spline_coeffs);
 
     // Calculate setpoints of 2 mid-range interpolated points.
@@ -369,9 +374,9 @@ private:
     // Calculate 2 points in middle-speed range by cubic spline interpolation.
     rpms_approx[2] = polynomial(setpoints_approx[2], spline_coeffs, 3);
     rpms_approx[3] = polynomial(setpoints_approx[3], spline_coeffs, 3);
-    
+
     // Build reversed interpolation table (X = rpm, Y = setpoint)
-    // and store it in flash memory. 
+    // and store it in flash memory.
     // RPM = 0.0 and RPM = 1.0 points are skipped.
     for (int i = CFG_RPM_INTERP_TABLE_LENGTH - 1; i >= 0; i--)
     {
