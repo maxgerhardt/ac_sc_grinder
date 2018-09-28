@@ -41,7 +41,7 @@ public:
     case START_MEASURE:
 
       // Pick setpoint value from set of optimal values
-      setpoint = F16(setpoints[setpoint_idx]);
+      setpoint = setpoints_preset[setpoint_idx];
 
       triacDriver.setpoint = setpoint;
 
@@ -72,6 +72,7 @@ public:
         {
           // Save rpm value for current setpoint 
           rpms[setpoint_idx] = fix16_to_float(median_filter.result());
+          setpoints[setpoint_idx] = fix16_to_float(setpoint);
           setpoint_idx++;
 
           // End reached => go to processing
@@ -135,33 +136,39 @@ private:
   int measure_attempts = 0;
 
   // Set of optimal to measurement setpoint values.
-  float setpoints[19] = { 0.015625,
-                        0.03125,
-                        0.046875,
-                        0.0625,
-                        0.078125,
-                        0.09375,
-                        0.109375,
-                        0.125,
-                        0.140625,
-                        0.15625,
-                        0.171875,
-                        0.1875,
-                        0.203125,
-                        0.234375,
-                        0.265625,
-                        0.296875,
-                        0.640625,
-                        0.765625,
-                        1
-                      };
+  fix16_t setpoints_preset[16] = { 1024,
+                            2048,
+                            3072,
+                            4096,
+                            5120,
+                            6144,
+                            7168,
+                            8192,
+                            9216,
+                            10240,
+                            11264,
+                            12288,
+                            13312,
+                            41984,
+                            50176,
+                            65536
+                          };
+
+  // Array for measured setpoints values
+  float setpoints[(sizeof(setpoints_preset) / sizeof(setpoints_preset[0]))];
+
   // Array for measured rpm values
-  float rpms[19];
+  float rpms[(sizeof(setpoints) / sizeof(setpoints[0]))];
   int setpoint_idx = 0;
 
-   // Approximated setpoint values.
+  // Approximated setpoint values.
+  // 7 points used for approximation of measured data:
+  // - 2 points for linear approximated interval in low-speed range
+  // - 2 points for spline interpolated interval in mid-speed range
+  // - 3 points in high-speed range
+  // A lot more measured points is used to perform linear approxmation,
+  // after which it is enough to have 2 points on linear low-speed interval.
   float setpoints_approx[7];
-
   // Approximated RPM values.
   float rpms_approx[7];
 
@@ -237,21 +244,21 @@ private:
       if (rpms[i] > 1.0) rpms[i] = 1.0;
     }
 
-    // Find last point in rpm range [0.17..0.5]
+    // Find last point in rpm range [0.17..0.4]
     // (for linear approximation)
-    volatile int last_linear_point = 0;
+    int last_linear_point = 0;
     for (int i = setpoint_idx - 1; i >= 0; i--)
     {
-      if (rpms[i] <= 0.5)
+      if (rpms[i] <= 0.4)
       {
         last_linear_point = i;
         break;
       }
     }
   
-    // Find first point in rpm range [0.17..0.5]
+    // Find first point in rpm range [0.17..0.4]
     // (for linear approximation)
-    volatile int first_linear_point = 0;
+    int first_linear_point = 0;
     for (int i = last_linear_point; i >= 0; i--)
     {
       if (rpms[i] < 0.17)
@@ -261,7 +268,7 @@ private:
       }
     }
   
-    // Cut points below first point in rpm range [0.17..0.5]
+    // Cut points below first point in rpm range [0.17..0.4]
     for (int i = 0; i < setpoint_idx - first_linear_point; i++)
     {
       setpoints[i] = setpoints[i + first_linear_point];
@@ -276,7 +283,7 @@ private:
     float linear_approx_coeffs[2];
 
     // Linear approximation of points
-    // in rpm range [0.17..0.5].
+    // in rpm range [0.17..0.4].
     polyfit(1, setpoints, rpms, last_linear_point - first_linear_point + 1, linear_approx_coeffs);
   
     // Calculate setpoint with rpm = 0
