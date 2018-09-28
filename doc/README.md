@@ -87,14 +87,30 @@ Note, we have 2 transforms for triac phase in the end:
 1. DC volts (0..max) to AC phase of sine wave.
 2. Motor non-linearity compensation.
 
-Suggested algorythm is:
+It would be nice to scan speed in all voltage range and build inverse
+compensation function.
 
-- Increase triac phase with small steps and measure RPMs at each point.
-- Drop noise at start and end points.
-- Use last point value as scaling factor.
-- Apply polinom interpolation to filter local jitters.
+See `rpms_vs_volts_idling.ods` with scan results from real tacho (red) and our
+"speed sensor" (blue). There are 2 problems:
 
-See `./data/rpms_interpolated.ods` for real data.
+1. Bad noise al low volts. Seems, can not be dismissed with this motor type.
+2. Drawdown in middle range. No ideas about nature of this effect.
+
+Bad news is, we should compensate both deviations. Now we do this via "magical
+constants", selecting ranges with trustable data. But this was not tested with
+other motors and should be improved somehow.
+
+Current algorythm is:
+
+- Scan RPMs with small step in low range, and search interval [0.2..0.4]
+  at Y axis. Build extrapolation (line) for low range. Use 2 points for linear
+  interpolation.
+- Scan 3 points at high range, use for linear interpolation.
+- Connect the gap between via spline and use 2 points for linear interpolation
+  (that's enougth).
+
+So, we have 7 points to interpolate RPMs good enougth. See
+`rpms_approximated.ods`. Finally, those can be used to build inverse data.
 
 Note about scaling factor. That depends on konstructive coefficient K of motor.
 In real world everything is very simple. "Speed sensor" should produce data in
@@ -106,20 +122,9 @@ is ~ 400-500. For any other motors it should fit in [300..2000] range.
 How to detect that speed become stable:
 
 - Collect data ~ 0.25 secs & apply median filter.
-- Try 3 times and make sure difference is < 0.1%.
+- Try 3 times and make sure difference is < 0.3% (1% is not enougth).
 - Limit total number of measurements to 3 secs (in case jitter is too big and
   stability condition is not satisfied)
-
-How to apply polynomial interpolation:
-
-- Clamp data near and. RAW data can be a bit more than last value, due noise.
-  Restrict it.
-- Zero noise near start. Note, interpolation can NOT be used to extrapolate
-  values out of bounds. So, instead of dropping start values, set it to zeroes.
-  To simplify math, low treshold is "magical constant", determined by observing
-  real data. We take all point, while values is > 0.2, + 1 point.
-- Since we need inverse function (f(rpms) -> volts), swap X and Y coords prior
-  to apply polinom search.
 
 
 ### PID calibration
