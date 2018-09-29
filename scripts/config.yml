@@ -90,7 +90,7 @@ schema:
       minimum: 1
       maximum: 10
 
-    11:
+    10:
       title: R_ekv to speed factor
       name: REKV_TO_SPEED_FACTOR
       description: >
