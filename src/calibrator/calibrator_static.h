@@ -23,6 +23,8 @@ extern TriacDriver triacDriver;
 // no time for such optimization.
 constexpr int calibrator_rl_buffer_length = APP_TICK_FREQUENCY / 50;
 
+// Holds current index in R interpolation table
+int r_interp_table_index = 0;
 
 class CalibratorStatic
 {
@@ -45,6 +47,22 @@ public:
       if (ticks_cnt++ >= (2 * APP_TICK_FREQUENCY)) set_state(WAIT_ZERO_CROSS);
 
       break;
+
+    // Reinitialization and 0.5 sec pause
+    // before next calibration step
+    case RESTART:
+      buffer_idx = 0;
+      zero_cross_down_offset = 0;
+
+      triacDriver.setpoint = 0;
+      triacDriver.tick();
+
+      // Pause 0.5 sec before calibration with next setpoint value start
+      // to be sure that motor stopped completely.
+      if (ticks_cnt++ >= (APP_TICK_FREQUENCY / 2)) set_state(WAIT_ZERO_CROSS);
+
+      break;
+
 
     case WAIT_ZERO_CROSS:
       triacDriver.tick();
@@ -75,13 +93,15 @@ public:
 
       triacDriver.tick();
 
+      // Wait positive wave
+      if (!sensors.zero_cross_up) break;
 
       // Fall down to recording immediately, we should not miss data for this tick
       set_state(RECORD_POSITIVE_WAVE);
 
     case RECORD_POSITIVE_WAVE:
       // turn on triac
-      triacDriver.setpoint = fix16_one;
+      triacDriver.setpoint = sensors.cfg_r_table_setpoints[r_interp_table_index];
       triacDriver.tick();
 
       // Safety check. Restart on out of bounds.
@@ -111,7 +131,7 @@ public:
       // go to data processing
       if (sensors.zero_cross_up || buffer_idx >= calibrator_rl_buffer_length)
       {
-        set_state(CALCULATE);
+        set_state(WAIT_NEGATIVE_WAVE_2);
         break;
       }
 
@@ -123,13 +143,49 @@ public:
 
       break;
 
+    case WAIT_NEGATIVE_WAVE_2:
+
+      triacDriver.tick();
+
+      if (!sensors.zero_cross_down) break;
+
+      set_state(DEMAGNETIZE);
+
+      break;
+
+    // Open triac on negative wave
+    // with the same setpoint
+    // to demagnetize motor core
+    case DEMAGNETIZE:
+      if (sensors.zero_cross_up) {
+        triacDriver.setpoint = 0;
+        triacDriver.tick();
+        set_state(CALCULATE);
+        break;
+      }
+
+      triacDriver.setpoint = sensors.cfg_r_table_setpoints[r_interp_table_index];
+      triacDriver.tick();
+
+      break;
+
     // Process collected data. That may take a lot of time, but we don't care
     // about triac at this moment
     case CALCULATE:
       process_data();
-      set_state(INIT);
 
-      return true;
+      if (r_interp_table_index < CFG_R_INTERP_TABLE_LENGTH)
+      {
+        set_state(RESTART);
+        return false;
+      }
+      else
+      {
+        set_state(INIT);
+        // Reload sensor's config.
+        sensors.configure();
+        return true;
+      }
     }
 
     return false;
@@ -149,11 +205,14 @@ private:
 
   enum State {
     INIT,
+    RESTART,
     WAIT_ZERO_CROSS,
     RECORD_NOIZE,
     WAIT_ZERO_CROSS_2,
     RECORD_POSITIVE_WAVE,
     RECORD_NEGATIVE_WAVE,
+    WAIT_NEGATIVE_WAVE_2,
+    DEMAGNETIZE,
     CALCULATE
   } state = INIT;
 
@@ -202,10 +261,8 @@ private:
     // R = P / Current^2
     float R = p_sum / i2_sum;
 
-    eeprom_float_write(CFG_MOTOR_RESISTANCE_ADDR, R);
-
-    // Reload sensor's config.
-    sensors.configure();
+    eeprom_float_write(CFG_R_INTERP_TABLE_START_ADDR + r_interp_table_index, R);
+    r_interp_table_index++;
   }
 };
 
