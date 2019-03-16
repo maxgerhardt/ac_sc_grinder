@@ -55,17 +55,17 @@ public:
   fix16_t in_triac_setpoint = 0;
 
   fix16_t cfg_r_table_setpoints[CFG_R_INTERP_TABLE_LENGTH] = {
-  F16(1.0 / 10.0),
-  F16(1.0 / 9.0),
-  F16(1.0 / 8.0),
-  F16(1.0 / 7.0),
-  F16(1.0 / 6.0),
-  F16(1.0 / 5.0),
-  F16(1.0 / 4.0),
-  F16(1.0 / 3.0),
-  F16(1.0 / 2.0),
-  F16(1.0 / 1.0),
-};
+    F16(1.0 / 10.0),
+    F16(1.0 / 9.0),
+    F16(1.0 / 8.0),
+    F16(1.0 / 7.0),
+    F16(1.0 / 6.0),
+    F16(1.0 / 5.0),
+    F16(1.0 / 4.0),
+    F16(1.0 / 3.0),
+    F16(1.0 / 2.0),
+    F16(1.0 / 1.0),
+  };
 
   // Should be called with 40kHz frequency
   void tick()
@@ -119,10 +119,9 @@ public:
       eeprom_float_read(CFG_REKV_TO_SPEED_FACTOR_ADDR, CFG_REKV_TO_SPEED_FACTOR_DEFAULT)
     );
 
-    r_table_len = 0;
     for (int i = 0; i < CFG_R_INTERP_TABLE_LENGTH; i++)
     {
-      cfg_r_table[r_table_len++] = fix16_from_float(
+      cfg_r_table[i] = fix16_from_float(
           eeprom_float_read(
             i + CFG_R_INTERP_TABLE_START_ADDR,
             CFG_MOTOR_RESISTANCE_DEFAULT
@@ -153,8 +152,6 @@ private:
 
   // Motor resistance interpolation table
   fix16_t cfg_r_table[CFG_R_INTERP_TABLE_LENGTH];
-
-  int r_table_len = 0;
 
   // 1. Calculate σ (discrete random variable)
   // 2. Drop everything with deviation > 2σ and count mean for the rest.
@@ -259,15 +256,12 @@ private:
     voltage = fix16_mul(adc_voltage << 4, v_ref) * 201;
   }
 
-  fix16_t interpolate_r_motor(fix16_t setpoint)
+  fix16_t get_motor_resistance(fix16_t setpoint)
   {
     // Bounds check
-    if (setpoint < cfg_r_table_setpoints[0])
-    {
-      return cfg_r_table[0];
-    }
+    if (setpoint < cfg_r_table_setpoints[0]) return cfg_r_table[0];
 
-    if (setpoint >= fix16_one) setpoint = fix16_one;
+    if (setpoint >= fix16_one) return cfg_r_table[CFG_R_INTERP_TABLE_LENGTH - 1];
 
     for (int i = 0; i < CFG_R_INTERP_TABLE_LENGTH - 1; i++)
     {
@@ -275,11 +269,12 @@ private:
       {
         fix16_t range_start = cfg_r_table[i];
         fix16_t range_end = cfg_r_table[i + 1];
-        fix16_t scale = fix16_div(setpoint - cfg_r_table_setpoints[i],
-         cfg_r_table_setpoints[i + 1] - cfg_r_table_setpoints[i]);
+        fix16_t scale = fix16_div(
+          setpoint - cfg_r_table_setpoints[i],
+          cfg_r_table_setpoints[i + 1] - cfg_r_table_setpoints[i]
+        );
 
-        return fix16_mul(range_start, fix16_one - scale) +
-           fix16_mul(range_end, scale);;
+        return fix16_mul(range_start, fix16_one - scale) + fix16_mul(range_end, scale);
       }
     }
 
@@ -359,8 +354,7 @@ private:
     {
       // p_sum was divided by 16 to prevent overflow,
       // so i2_sum must be divided by 16 now
-      fix16_t r_ekv = fix16_div(p_sum_div_16, i2_sum >> 4)
-       - interpolate_r_motor(in_triac_setpoint);
+      fix16_t r_ekv = fix16_div(p_sum_div_16, i2_sum >> 4) - get_motor_resistance(in_triac_setpoint);
 
       speed = fix16_div(r_ekv, cfg_rekv_to_speed_factor);
 

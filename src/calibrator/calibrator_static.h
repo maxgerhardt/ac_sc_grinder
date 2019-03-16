@@ -23,8 +23,6 @@ extern TriacDriver triacDriver;
 // no time for such optimization.
 constexpr int calibrator_rl_buffer_length = APP_TICK_FREQUENCY / 50;
 
-// Holds current index in R interpolation table
-int r_interp_table_index = 0;
 
 class CalibratorStatic
 {
@@ -36,11 +34,10 @@ public:
 
     // Reset variables and wait 1 second to make sure motor stopped.
     case INIT:
-      buffer_idx = 0;
-      zero_cross_down_offset = 0;
-
       triacDriver.setpoint = 0;
       triacDriver.tick();
+
+      r_interp_table_index = 0;
 
       // Pause 2 sec before calibration start to be sure
       // that motor stopped completely.
@@ -48,29 +45,14 @@ public:
 
       break;
 
-    // Reinitialization and 0.5 sec pause
-    // before next calibration step
-    case RESTART:
-      buffer_idx = 0;
-      zero_cross_down_offset = 0;
-
-      triacDriver.setpoint = 0;
-      triacDriver.tick();
-
-      // Pause 0.5 sec before calibration with next setpoint value start
-      // to be sure that motor stopped completely.
-      if (ticks_cnt++ >= (APP_TICK_FREQUENCY / 2)) set_state(WAIT_ZERO_CROSS);
-
-      break;
-
-
     case WAIT_ZERO_CROSS:
       triacDriver.tick();
 
       if (!sensors.zero_cross_up) break;
 
-      set_state(RECORD_NOIZE);
+      buffer_idx = 0;
 
+      set_state(RECORD_NOIZE);
       break;
 
     case RECORD_NOIZE:
@@ -84,13 +66,26 @@ public:
 
       process_thresholds();
 
+      set_state(R_MEASUE_LOOP);
+      break;
+
+    // Reinitialization and 0.5 sec pause
+    // before next calibration step
+    case R_MEASUE_LOOP:
       buffer_idx = 0;
-      set_state(WAIT_ZERO_CROSS_2);
+      zero_cross_down_offset = 0;
+
+      triacDriver.setpoint = 0;
+      triacDriver.tick();
+
+      // Pause 0.5 sec before calibration with next setpoint value start
+      // to be sure that motor stopped completely.
+      if (ticks_cnt++ >= (APP_TICK_FREQUENCY / 2)) set_state(WAIT_ZERO_CROSS_2);
+
       break;
 
     // Calibration should be started at the begining of positive period
     case WAIT_ZERO_CROSS_2:
-
       triacDriver.tick();
 
       // Wait positive wave
@@ -140,52 +135,47 @@ public:
       current_buffer[buffer_idx] = fix16_to_float(sensors.current);
 
       buffer_idx++;
-
       break;
 
     case WAIT_NEGATIVE_WAVE_2:
-
       triacDriver.tick();
 
       if (!sensors.zero_cross_down) break;
 
       set_state(DEMAGNETIZE);
-
       break;
 
     // Open triac on negative wave
     // with the same setpoint
     // to demagnetize motor core
     case DEMAGNETIZE:
-      if (sensors.zero_cross_up) {
-        triacDriver.setpoint = 0;
-        triacDriver.tick();
-        set_state(CALCULATE);
-        break;
-      }
-
       triacDriver.setpoint = sensors.cfg_r_table_setpoints[r_interp_table_index];
       triacDriver.tick();
+
+      if (!sensors.zero_cross_up) break;
+
+      set_state(CALCULATE);
 
       break;
 
     // Process collected data. That may take a lot of time, but we don't care
     // about triac at this moment
     case CALCULATE:
+      triacDriver.setpoint = 0;
+      triacDriver.tick();
+
       process_data();
 
       if (r_interp_table_index < CFG_R_INTERP_TABLE_LENGTH)
       {
-        set_state(RESTART);
-        return false;
+        set_state(R_MEASUE_LOOP);
+        break;
       }
-      else
-      {
-        set_state(INIT);
-        // Reload sensor's config.
-        sensors.configure();
-        return true;
-      }
+
+      set_state(INIT);
+      // Reload sensor's config.
+      sensors.configure();
+      return true;
     }
 
     return false;
@@ -200,14 +190,16 @@ private:
 
   uint32_t buffer_idx = 0;
   uint32_t zero_cross_down_offset = 0;
+  // Holds current index in R interpolation table
+  int r_interp_table_index = 0;
 
   MedianIteratorTemplate<float, 32> median_filter;
 
   enum State {
     INIT,
-    RESTART,
     WAIT_ZERO_CROSS,
     RECORD_NOIZE,
+    R_MEASUE_LOOP,
     WAIT_ZERO_CROSS_2,
     RECORD_POSITIVE_WAVE,
     RECORD_NEGATIVE_WAVE,
