@@ -12,6 +12,8 @@
 #include "../sensors.h"
 #include "../triac_driver.h"
 
+#define R_MEASURE_ATTEMPTS 3
+
 extern Sensors sensors;
 extern TriacDriver triacDriver;
 
@@ -38,6 +40,8 @@ public:
       triacDriver.tick();
 
       r_interp_table_index = 0;
+      r_median_filter.reset();
+      r_measure_attempt = 0;
 
       // Pause 2 sec before calibration start to be sure
       // that motor stopped completely.
@@ -164,7 +168,19 @@ public:
       triacDriver.setpoint = 0;
       triacDriver.tick();
 
-      process_data();
+      float R = process_data();
+      r_median_filter.add(R);
+      r_measure_attempt++;
+
+      if (r_measure_attempt == R_MEASURE_ATTEMPTS
+      )
+      {
+        float median_R = r_median_filter.result();
+        eeprom_float_write(CFG_R_INTERP_TABLE_START_ADDR + r_interp_table_index, median_R);
+        r_median_filter.reset();
+        r_interp_table_index++;
+        r_measure_attempt = 0;
+      }
 
       if (r_interp_table_index < CFG_R_INTERP_TABLE_LENGTH)
       {
@@ -193,7 +209,9 @@ private:
   // Holds current index in R interpolation table
   int r_interp_table_index = 0;
 
-  MedianIteratorTemplate<float, 32> median_filter;
+  int r_measure_attempt = 0 ;
+
+  MedianIteratorTemplate<float, R_MEASURE_ATTEMPTS> r_median_filter;
 
   enum State {
     INIT,
@@ -233,7 +251,7 @@ private:
     sensors.cfg_min_power_treshold = fix16_from_float(p_sum * 4 / buffer_idx);
   }
 
-  void process_data()
+  float process_data()
   {
     //
     // Process R
@@ -253,8 +271,7 @@ private:
     // R = P / Current^2
     float R = p_sum / i2_sum;
 
-    eeprom_float_write(CFG_R_INTERP_TABLE_START_ADDR + r_interp_table_index, R);
-    r_interp_table_index++;
+    return R;
   }
 };
 
